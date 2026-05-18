@@ -1,5 +1,9 @@
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
+import QueuePanel from "../components/QueuePanel";
+import { QueueItem } from "../../types/queue";
+
+const queueItems: QueueItem[] = [];
 
 export default function OptometristPage() {
   return (
@@ -12,9 +16,7 @@ export default function OptometristPage() {
           title="Live Queue"
           subtitle="Patients ready for optometrist workup"
         >
-          <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-            Queue will appear here
-          </div>
+          <QueuePanel items={queueItems} />
         </SectionCard>
 
         <SectionCard

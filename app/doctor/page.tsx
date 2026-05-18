@@ -1,5 +1,9 @@
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
+import QueuePanel from "../components/QueuePanel";
+import { QueueItem } from "../../types/queue";
+
+const queueItems: QueueItem[] = [];
 
 export default function DoctorPage() {
   return (
@@ -13,9 +17,7 @@ export default function DoctorPage() {
             title="Live Queue"
             subtitle="Patients waiting for doctor"
           >
-            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-              Queue will appear here
-            </div>
+            <QueuePanel items={queueItems} />
           </SectionCard>
 
           <SectionCard
@@ -75,7 +77,8 @@ export default function DoctorPage() {
                 Medicines
               </p>
               <p className="mt-2 text-sm text-slate-500">
-                Medicine rows with eye, frequency, duration, and notes will appear here.
+                Medicine rows with eye, frequency, duration, and notes will
+                appear here.
               </p>
             </div>
 

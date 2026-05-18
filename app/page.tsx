@@ -1,29 +1,57 @@
+import Link from "next/link";
+import AppShell from "./components/AppShell";
+
+const roles = [
+  {
+    title: "Reception",
+    description: "Patient check-in, billing, receipts, and queue entry",
+    href: "/reception",
+  },
+  {
+    title: "Optometrist",
+    description: "Workup, refraction, IOP, dilation, and spectacle draft",
+    href: "/optometrist",
+  },
+  {
+    title: "Doctor / Admin",
+    description: "Consultation, prescriptions, reports, and master data",
+    href: "/doctor",
+  },
+];
+
 export default function Home() {
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-slate-900 text-center">
-          Eye Clinic OPD System
-        </h1>
+    <AppShell
+      title="Eye Clinic OPD System"
+      subtitle="Internal clinic management and EMR"
+    >
+      <div className="mb-8">
+        <h2 className="text-3xl font-bold text-slate-900">
+          Select your workspace
+        </h2>
 
-        <p className="mt-3 text-center text-slate-600">
-          Internal clinic management app
+        <p className="mt-2 text-slate-600">
+          Choose the role you want to use for today’s clinic workflow.
         </p>
-
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          <button className="rounded-xl border border-slate-200 bg-slate-100 p-6 text-xl font-semibold hover:bg-slate-200">
-            Reception
-          </button>
-
-          <button className="rounded-xl border border-slate-200 bg-slate-100 p-6 text-xl font-semibold hover:bg-slate-200">
-            Optometrist
-          </button>
-
-          <button className="rounded-xl border border-slate-200 bg-slate-900 p-6 text-xl font-semibold text-white hover:bg-slate-800">
-            Doctor / Admin
-          </button>
-        </div>
       </div>
-    </main>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        {roles.map((role) => (
+          <Link
+            key={role.title}
+            href={role.href}
+            className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+          >
+            <h3 className="text-xl font-semibold text-slate-900">
+              {role.title}
+            </h3>
+
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {role.description}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </AppShell>
   );
 }

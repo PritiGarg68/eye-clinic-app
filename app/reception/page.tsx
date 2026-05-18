@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import { samplePatients } from "../../lib/samplePatients";
+import { Patient } from "../../types/patient";
 
 export default function ReceptionPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
   const matchingPatients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -23,6 +25,14 @@ export default function ReceptionPage() {
       );
     });
   }, [searchTerm]);
+
+  function handleSelectPatient(patient: Patient) {
+    setSelectedPatient(patient);
+  }
+
+  function handleClearSelection() {
+    setSelectedPatient(null);
+  }
 
   return (
     <AppShell
@@ -68,6 +78,7 @@ export default function ReceptionPage() {
                     {matchingPatients.map((patient) => (
                       <button
                         key={patient.id}
+                        onClick={() => handleSelectPatient(patient)}
                         className="rounded-xl border border-slate-200 bg-white p-4 text-left hover:border-slate-400"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -89,6 +100,53 @@ export default function ReceptionPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {selectedPatient && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-700">
+                      Selected Patient
+                    </p>
+
+                    <p className="mt-2 text-lg font-semibold text-slate-900">
+                      {selectedPatient.name}
+                    </p>
+
+                    <p className="text-sm text-slate-600">
+                      {selectedPatient.age} yrs / {selectedPatient.gender}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-600">
+                      {selectedPatient.uhid} · {selectedPatient.mobile}
+                    </p>
+
+                    {selectedPatient.notes && (
+                      <p className="mt-2 text-sm text-slate-500">
+                        {selectedPatient.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleClearSelection}
+                    className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                  >
+                    Change
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
+                    Proceed to Payment
+                  </button>
+
+                  <button className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300">
+                    Mark as Follow-Up
+                  </button>
+                </div>
               </div>
             )}
 

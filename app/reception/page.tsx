@@ -9,6 +9,16 @@ import { Patient } from "../../types/patient";
 export default function ReceptionPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+
+  const [newPatientName, setNewPatientName] = useState("");
+  const [newPatientMobile, setNewPatientMobile] = useState("");
+  const [newPatientAge, setNewPatientAge] = useState("");
+  const [newPatientGender, setNewPatientGender] = useState<
+    "Male" | "Female" | "Other"
+  >("Male");
+  const [newPatientAddress, setNewPatientAddress] = useState("");
+  const [newPatientNotes, setNewPatientNotes] = useState("");
 
   const matchingPatients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -28,10 +38,43 @@ export default function ReceptionPage() {
 
   function handleSelectPatient(patient: Patient) {
     setSelectedPatient(patient);
+    setShowRegistrationForm(false);
   }
 
   function handleClearSelection() {
     setSelectedPatient(null);
+  }
+
+  function handleOpenRegistration() {
+    setShowRegistrationForm(true);
+    setSelectedPatient(null);
+
+    if (/^\d+$/.test(searchTerm.trim())) {
+      setNewPatientMobile(searchTerm.trim());
+    }
+  }
+
+  function handleCreateTemporaryPatient() {
+    if (!newPatientName || !newPatientMobile || !newPatientAge) {
+      alert("Please enter name, mobile number, and age.");
+      return;
+    }
+
+    const temporaryPatient: Patient = {
+      id: `temp-${Date.now()}`,
+      uhid: "TEMP-UHID",
+      mobile: newPatientMobile,
+      name: newPatientName,
+      age: Number(newPatientAge),
+      gender: newPatientGender,
+      address: newPatientAddress || undefined,
+      notes: newPatientNotes || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    setSelectedPatient(temporaryPatient);
+    setShowRegistrationForm(false);
+    setSearchTerm(newPatientMobile);
   }
 
   return (
@@ -103,6 +146,85 @@ export default function ReceptionPage() {
               </div>
             )}
 
+            {showRegistrationForm && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-medium text-blue-700">
+                  Register New Patient
+                </p>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <input
+                    type="text"
+                    value={newPatientName}
+                    onChange={(event) => setNewPatientName(event.target.value)}
+                    placeholder="Patient name"
+                    className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                  />
+
+                  <input
+                    type="text"
+                    value={newPatientMobile}
+                    onChange={(event) => setNewPatientMobile(event.target.value)}
+                    placeholder="Mobile number"
+                    className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                  />
+
+                  <input
+                    type="number"
+                    value={newPatientAge}
+                    onChange={(event) => setNewPatientAge(event.target.value)}
+                    placeholder="Age"
+                    className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                  />
+
+                  <select
+                    value={newPatientGender}
+                    onChange={(event) =>
+                      setNewPatientGender(
+                        event.target.value as "Male" | "Female" | "Other"
+                      )
+                    }
+                    className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    value={newPatientAddress}
+                    onChange={(event) => setNewPatientAddress(event.target.value)}
+                    placeholder="Address / locality optional"
+                    className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 md:col-span-2"
+                  />
+
+                  <textarea
+                    value={newPatientNotes}
+                    onChange={(event) => setNewPatientNotes(event.target.value)}
+                    placeholder="Notes optional"
+                    className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 md:col-span-2"
+                  />
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    onClick={handleCreateTemporaryPatient}
+                    className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                  >
+                    Create Patient
+                  </button>
+
+                  <button
+                    onClick={() => setShowRegistrationForm(false)}
+                    className="rounded-xl bg-white px-4 py-3 font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             {selectedPatient && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -155,7 +277,10 @@ export default function ReceptionPage() {
                 Search Patient
               </button>
 
-              <button className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300">
+              <button
+                onClick={handleOpenRegistration}
+                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
+              >
                 Register New Patient
               </button>
             </div>

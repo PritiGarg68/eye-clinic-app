@@ -4,18 +4,22 @@ import { useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
+import { useQueue } from "../components/QueueProvider";
 import { samplePatients } from "../../lib/samplePatients";
 import { Patient } from "../../types/patient";
 import { QueueItem, VisitType, PaymentMode } from "../../types/queue";
 
 export default function ReceptionPage() {
+  const {
+    queueItems,
+    selectedQueueItem,
+    addQueueItem,
+    selectQueueItem,
+  } = useQueue();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
-  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
-  const [selectedQueueItem, setSelectedQueueItem] = useState<QueueItem | null>(
-    null
-  );
 
   const [newPatientName, setNewPatientName] = useState("");
   const [newPatientMobile, setNewPatientMobile] = useState("");
@@ -157,9 +161,8 @@ export default function ReceptionPage() {
       status: "Waiting",
     };
 
-    setQueueItems((currentQueue) => [...currentQueue, queueItem]);
+    addQueueItem(queueItem);
     setReceiptGenerated(true);
-    setSelectedQueueItem(queueItem);
   }
 
   function handleStartNextPatient() {
@@ -168,10 +171,6 @@ export default function ReceptionPage() {
     setShowRegistrationForm(false);
     resetNewPatientForm();
     resetPaymentState();
-  }
-
-  function handleSelectQueueItem(item: QueueItem) {
-    setSelectedQueueItem(item);
   }
 
   return (
@@ -187,7 +186,7 @@ export default function ReceptionPage() {
           <QueuePanel
             items={queueItems}
             selectedItemId={selectedQueueItem?.id}
-            onSelectItem={handleSelectQueueItem}
+            onSelectItem={selectQueueItem}
           />
 
           {selectedQueueItem && (

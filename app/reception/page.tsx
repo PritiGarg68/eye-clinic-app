@@ -6,6 +6,9 @@ import SectionCard from "../components/SectionCard";
 import { samplePatients } from "../../lib/samplePatients";
 import { Patient } from "../../types/patient";
 
+type VisitType = "New Patient Visit" | "Returning Patient" | "Free Follow-Up";
+type PaymentMode = "Cash" | "UPI" | "Card";
+
 export default function ReceptionPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -19,6 +22,12 @@ export default function ReceptionPage() {
   >("Male");
   const [newPatientAddress, setNewPatientAddress] = useState("");
   const [newPatientNotes, setNewPatientNotes] = useState("");
+
+  const [visitType, setVisitType] = useState<VisitType>("New Patient Visit");
+  const [consultationFee, setConsultationFee] = useState("1000");
+  const [discountAmount, setDiscountAmount] = useState("0");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("Cash");
+  const [receiptGenerated, setReceiptGenerated] = useState(false);
 
   const matchingPatients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -36,18 +45,60 @@ export default function ReceptionPage() {
     });
   }, [searchTerm]);
 
+  const amountPayable = useMemo(() => {
+    if (visitType === "Free Follow-Up") {
+      return 0;
+    }
+
+    const fee = Number(consultationFee) || 0;
+    const discount = Number(discountAmount) || 0;
+
+    return Math.max(fee - discount, 0);
+  }, [visitType, consultationFee, discountAmount]);
+
+  function resetPaymentState() {
+    setVisitType("New Patient Visit");
+    setConsultationFee("1000");
+    setDiscountAmount("0");
+    setPaymentMode("Cash");
+    setReceiptGenerated(false);
+  }
+
+  function resetNewPatientForm() {
+    setNewPatientName("");
+    setNewPatientMobile("");
+    setNewPatientAge("");
+    setNewPatientGender("Male");
+    setNewPatientAddress("");
+    setNewPatientNotes("");
+  }
+
+  function handleSearchTermChange(value: string) {
+    setSearchTerm(value);
+    setSelectedPatient(null);
+    setShowRegistrationForm(false);
+    setReceiptGenerated(false);
+  }
+
   function handleSelectPatient(patient: Patient) {
     setSelectedPatient(patient);
     setShowRegistrationForm(false);
+    setVisitType("Returning Patient");
+    setConsultationFee("1000");
+    setDiscountAmount("0");
+    setPaymentMode("Cash");
+    setReceiptGenerated(false);
   }
 
   function handleClearSelection() {
     setSelectedPatient(null);
+    setReceiptGenerated(false);
   }
 
   function handleOpenRegistration() {
     setShowRegistrationForm(true);
     setSelectedPatient(null);
+    resetPaymentState();
 
     if (/^\d+$/.test(searchTerm.trim())) {
       setNewPatientMobile(searchTerm.trim());
@@ -62,7 +113,7 @@ export default function ReceptionPage() {
 
     const temporaryPatient: Patient = {
       id: `temp-${Date.now()}`,
-      uhid: "TEMP-UHID",
+      uhid: `EC-TEMP-${Date.now()}`,
       mobile: newPatientMobile,
       name: newPatientName,
       age: Number(newPatientAge),
@@ -75,6 +126,28 @@ export default function ReceptionPage() {
     setSelectedPatient(temporaryPatient);
     setShowRegistrationForm(false);
     setSearchTerm(newPatientMobile);
+    setVisitType("New Patient Visit");
+    setConsultationFee("1000");
+    setDiscountAmount("0");
+    setPaymentMode("Cash");
+    setReceiptGenerated(false);
+  }
+
+  function handleGenerateReceipt() {
+    if (!selectedPatient) {
+      alert("Please select a patient first.");
+      return;
+    }
+
+    setReceiptGenerated(true);
+  }
+
+  function handleStartNextPatient() {
+    setSearchTerm("");
+    setSelectedPatient(null);
+    setShowRegistrationForm(false);
+    resetNewPatientForm();
+    resetPaymentState();
   }
 
   return (
@@ -101,12 +174,12 @@ export default function ReceptionPage() {
             <input
               type="text"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => handleSearchTermChange(event.target.value)}
               placeholder="Search by mobile number / UHID / name"
               className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
             />
 
-            {searchTerm && (
+            {searchTerm && !showRegistrationForm && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-700">
                   Search Results
@@ -114,7 +187,7 @@ export default function ReceptionPage() {
 
                 {matchingPatients.length === 0 ? (
                   <p className="mt-3 text-sm text-slate-500">
-                    No matching patient found. You can register a new patient.
+                    No matching patient found. Click New Patient to register.
                   </p>
                 ) : (
                   <div className="mt-3 grid gap-3">
@@ -212,7 +285,7 @@ export default function ReceptionPage() {
                     onClick={handleCreateTemporaryPatient}
                     className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
                   >
-                    Create Patient
+                    Save Patient
                   </button>
 
                   <button
@@ -259,16 +332,125 @@ export default function ReceptionPage() {
                     Change
                   </button>
                 </div>
+              </div>
+            )}
+
+            {selectedPatient && (
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-sm font-medium text-slate-700">
+                  Payment Details
+                </p>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    Visit Type
+                    <select
+                      value={visitType}
+                      onChange={(event) => {
+                        setVisitType(event.target.value as VisitType);
+                        setReceiptGenerated(false);
+                      }}
+                      className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                    >
+                      <option value="New Patient Visit">New Patient Visit</option>
+                      <option value="Returning Patient">Returning Patient</option>
+                      <option value="Free Follow-Up">Free Follow-Up</option>
+                    </select>
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    Consultation Fee
+                    <input
+                      type="number"
+                      value={consultationFee}
+                      onChange={(event) => {
+                        setConsultationFee(event.target.value);
+                        setReceiptGenerated(false);
+                      }}
+                      disabled={visitType === "Free Follow-Up"}
+                      className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    Discount
+                    <input
+                      type="number"
+                      value={discountAmount}
+                      onChange={(event) => {
+                        setDiscountAmount(event.target.value);
+                        setReceiptGenerated(false);
+                      }}
+                      disabled={visitType === "Free Follow-Up"}
+                      className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm font-medium text-slate-700">
+                    Payment Mode
+                    <select
+                      value={paymentMode}
+                      onChange={(event) => {
+                        setPaymentMode(event.target.value as PaymentMode);
+                        setReceiptGenerated(false);
+                      }}
+                      disabled={visitType === "Free Follow-Up"}
+                      className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Card">Card</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-600">
+                      Amount Payable
+                    </span>
+                    <span className="text-2xl font-bold text-slate-900">
+                      ₹{amountPayable}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    Consultation fee can be edited before doctor opens
+                    consultation.
+                  </p>
+                </div>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
-                    Proceed to Payment
+                  <button
+                    onClick={handleGenerateReceipt}
+                    className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                  >
+                    Generate Receipt & Send to Queue
                   </button>
 
                   <button className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300">
-                    Mark as Follow-Up
+                    Print Receipt
                   </button>
                 </div>
+
+                {receiptGenerated && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="font-medium text-emerald-800">
+                      Receipt generated successfully.
+                    </p>
+
+                    <p className="mt-1 text-sm text-emerald-700">
+                      Patient is ready to be added to the queue.
+                    </p>
+
+                    <button
+                      onClick={handleStartNextPatient}
+                      className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
+                    >
+                      Start Next Patient
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -281,7 +463,7 @@ export default function ReceptionPage() {
                 onClick={handleOpenRegistration}
                 className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
               >
-                Register New Patient
+                New Patient
               </button>
             </div>
           </div>

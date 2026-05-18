@@ -13,6 +13,9 @@ export default function ReceptionPage() {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [selectedQueueItem, setSelectedQueueItem] = useState<QueueItem | null>(
+    null
+  );
 
   const [newPatientName, setNewPatientName] = useState("");
   const [newPatientMobile, setNewPatientMobile] = useState("");
@@ -156,6 +159,7 @@ export default function ReceptionPage() {
 
     setQueueItems((currentQueue) => [...currentQueue, queueItem]);
     setReceiptGenerated(true);
+    setSelectedQueueItem(queueItem);
   }
 
   function handleStartNextPatient() {
@@ -164,6 +168,10 @@ export default function ReceptionPage() {
     setShowRegistrationForm(false);
     resetNewPatientForm();
     resetPaymentState();
+  }
+
+  function handleSelectQueueItem(item: QueueItem) {
+    setSelectedQueueItem(item);
   }
 
   return (
@@ -176,7 +184,37 @@ export default function ReceptionPage() {
           title="Live Queue"
           subtitle="Patients waiting for consultation"
         >
-          <QueuePanel items={queueItems} />
+          <QueuePanel
+            items={queueItems}
+            selectedItemId={selectedQueueItem?.id}
+            onSelectItem={handleSelectQueueItem}
+          />
+
+          {selectedQueueItem && (
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-medium text-slate-700">
+                Selected Queue Patient
+              </p>
+
+              <p className="mt-2 font-semibold text-slate-900">
+                #{selectedQueueItem.tokenNumber} ·{" "}
+                {selectedQueueItem.patientName}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedQueueItem.age} yrs / {selectedQueueItem.gender}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedQueueItem.visitType}
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Paid: ₹{selectedQueueItem.amountPaid} ·{" "}
+                {selectedQueueItem.paymentMode}
+              </p>
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard

@@ -1,9 +1,11 @@
 "use client";
-import { sortQueueForRole } from "../../lib/queueSorting";
+
+import { useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import { useQueue } from "../components/QueueProvider";
+import { sortQueueForRole } from "../../lib/queueSorting";
 
 export default function OptometristPage() {
   const {
@@ -13,62 +15,73 @@ export default function OptometristPage() {
     updateQueueItemStatus,
   } = useQueue();
 
+  const [statusMessage, setStatusMessage] = useState("");
+
+  function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
+    selectQueueItem(item);
+    setStatusMessage("");
+  }
+
   function handleStartWorkup() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
-  
+
     updateQueueItemStatus(selectedQueueItem.id, "Under Optometry");
+    setStatusMessage("Status updated to Under Optometry.");
   }
-  
+
   function handleMarkDilated() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
-  
+
     updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
+    setStatusMessage("Patient marked as Dilated Waiting.");
   }
-  
+
   function handleReadyForDoctor() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
-  
+
     updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
+    setStatusMessage("Patient marked Ready for Doctor.");
   }
+
   return (
     <AppShell
       title="Optometrist Workspace"
@@ -80,10 +93,10 @@ export default function OptometristPage() {
           subtitle="Patients ready for optometrist workup"
         >
           <QueuePanel
-        items={sortQueueForRole(queueItems, "optometrist")}
-        selectedItemId={selectedQueueItem?.id}
-        onSelectItem={selectQueueItem}
-       />
+            items={sortQueueForRole(queueItems, "optometrist")}
+            selectedItemId={selectedQueueItem?.id}
+            onSelectItem={handleSelectPatientFromQueue}
+          />
         </SectionCard>
 
         <SectionCard
@@ -127,6 +140,12 @@ export default function OptometristPage() {
                 <p className="mt-1 text-sm text-slate-500">
                   Select a patient from the queue to begin workup.
                 </p>
+              </div>
+            )}
+
+            {statusMessage && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+                {statusMessage}
               </div>
             )}
 

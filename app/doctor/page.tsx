@@ -1,9 +1,11 @@
 "use client";
-import { sortQueueForRole } from "../../lib/queueSorting";
+
+import { useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import { useQueue } from "../components/QueueProvider";
+import { sortQueueForRole } from "../../lib/queueSorting";
 
 export default function DoctorPage() {
   const {
@@ -13,13 +15,35 @@ export default function DoctorPage() {
     updateQueueItemStatus,
   } = useQueue();
 
+  const [statusMessage, setStatusMessage] = useState("");
+
+  function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
+    selectQueueItem(item);
+    setStatusMessage("");
+  }
+
   function handleStartConsultation() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-
+  
+    if (selectedQueueItem.status === "Completed") {
+      const shouldReopen = window.confirm(
+        "This consultation is already completed. Do you still want to reopen it?"
+      );
+  
+      if (!shouldReopen) {
+        return;
+      }
+  
+      updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
+      setStatusMessage("Completed consultation reopened.");
+      return;
+    }
+  
     updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
+    setStatusMessage("Consultation started.");
   }
 
   function handleCompleteConsultation() {
@@ -29,6 +53,7 @@ export default function DoctorPage() {
     }
 
     updateQueueItemStatus(selectedQueueItem.id, "Completed");
+    setStatusMessage("Consultation completed.");
   }
 
   return (
@@ -39,11 +64,11 @@ export default function DoctorPage() {
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="grid gap-6 lg:col-span-1">
           <SectionCard title="Live Queue" subtitle="Patients waiting for doctor">
-          <QueuePanel
-         items={sortQueueForRole(queueItems, "doctor")}
-         selectedItemId={selectedQueueItem?.id}
-        onSelectItem={selectQueueItem}
-        />
+            <QueuePanel
+              items={sortQueueForRole(queueItems, "doctor")}
+              selectedItemId={selectedQueueItem?.id}
+              onSelectItem={handleSelectPatientFromQueue}
+            />
           </SectionCard>
 
           <SectionCard title="Patient Snapshot" subtitle="Current patient context">
@@ -90,6 +115,12 @@ export default function DoctorPage() {
           className="lg:col-span-3"
         >
           <div className="grid gap-4">
+            {statusMessage && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+                {statusMessage}
+              </div>
+            )}
+
             <div className="rounded-xl border border-slate-200 p-4">
               <p className="text-sm font-medium text-slate-700">
                 Chief Complaints

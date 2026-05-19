@@ -145,9 +145,22 @@ export default function ReceptionPage() {
       alert("Please select a patient first.");
       return;
     }
-
+  
+    const existingActiveQueueItem = queueItems.find(
+      (item) =>
+        item.uhid === selectedPatient.uhid && item.status !== "Completed"
+    );
+  
+    if (existingActiveQueueItem) {
+      selectQueueItem(existingActiveQueueItem);
+      alert(
+        `${selectedPatient.name} is already in the queue as token #${existingActiveQueueItem.tokenNumber}.`
+      );
+      return;
+    }
+  
     const nextTokenNumber = queueItems.length + 1;
-
+  
     const queueItem: QueueItem = {
       id: `${selectedPatient.id}-${Date.now()}`,
       tokenNumber: nextTokenNumber,
@@ -160,7 +173,7 @@ export default function ReceptionPage() {
       amountPaid: amountPayable,
       status: "Waiting",
     };
-
+  
     addQueueItem(queueItem);
     setReceiptGenerated(true);
   }

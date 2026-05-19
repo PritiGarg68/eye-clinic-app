@@ -1,5 +1,5 @@
 "use client";
-
+import { sortQueueForRole } from "../../lib/queueSorting";
 import { useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
@@ -197,10 +197,10 @@ export default function ReceptionPage() {
           subtitle="Patients waiting for consultation"
         >
           <QueuePanel
-            items={queueItems}
-            selectedItemId={selectedQueueItem?.id}
-            onSelectItem={selectQueueItem}
-          />
+  items={sortQueueForRole(queueItems, "reception")}
+  selectedItemId={selectedQueueItem?.id}
+  onSelectItem={selectQueueItem}
+/>
 
           {selectedQueueItem && (
             <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">

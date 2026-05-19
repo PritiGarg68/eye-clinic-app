@@ -1,5 +1,5 @@
 "use client";
-
+import { sortQueueForRole } from "../../lib/queueSorting";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
@@ -18,28 +18,57 @@ export default function OptometristPage() {
       alert("Please select a patient from the queue first.");
       return;
     }
-
+  
+    if (selectedQueueItem.status === "Completed") {
+      alert("This consultation is already completed.");
+      return;
+    }
+  
+    if (selectedQueueItem.status === "Under Consultation") {
+      alert("This patient is already under doctor consultation.");
+      return;
+    }
+  
     updateQueueItemStatus(selectedQueueItem.id, "Under Optometry");
   }
-
+  
   function handleMarkDilated() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-
+  
+    if (selectedQueueItem.status === "Completed") {
+      alert("This consultation is already completed.");
+      return;
+    }
+  
+    if (selectedQueueItem.status === "Under Consultation") {
+      alert("This patient is already under doctor consultation.");
+      return;
+    }
+  
     updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
   }
-
+  
   function handleReadyForDoctor() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-
+  
+    if (selectedQueueItem.status === "Completed") {
+      alert("This consultation is already completed.");
+      return;
+    }
+  
+    if (selectedQueueItem.status === "Under Consultation") {
+      alert("This patient is already under doctor consultation.");
+      return;
+    }
+  
     updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
   }
-
   return (
     <AppShell
       title="Optometrist Workspace"
@@ -51,10 +80,10 @@ export default function OptometristPage() {
           subtitle="Patients ready for optometrist workup"
         >
           <QueuePanel
-            items={queueItems}
-            selectedItemId={selectedQueueItem?.id}
-            onSelectItem={selectQueueItem}
-          />
+        items={sortQueueForRole(queueItems, "optometrist")}
+        selectedItemId={selectedQueueItem?.id}
+        onSelectItem={selectQueueItem}
+       />
         </SectionCard>
 
         <SectionCard

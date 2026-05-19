@@ -1,5 +1,5 @@
 "use client";
-
+import { sortQueueForRole } from "../../lib/queueSorting";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
@@ -39,11 +39,11 @@ export default function DoctorPage() {
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="grid gap-6 lg:col-span-1">
           <SectionCard title="Live Queue" subtitle="Patients waiting for doctor">
-            <QueuePanel
-              items={queueItems}
-              selectedItemId={selectedQueueItem?.id}
-              onSelectItem={selectQueueItem}
-            />
+          <QueuePanel
+         items={sortQueueForRole(queueItems, "doctor")}
+         selectedItemId={selectedQueueItem?.id}
+        onSelectItem={selectQueueItem}
+        />
           </SectionCard>
 
           <SectionCard title="Patient Snapshot" subtitle="Current patient context">

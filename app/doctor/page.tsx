@@ -7,6 +7,18 @@ import QueuePanel from "../components/QueuePanel";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 
+const visionRowLabels = {
+  unaided: "Unaided",
+  withGlasses: "With Glasses",
+  withPinHole: "With Pin Hole",
+} as const;
+
+const spectacleRowLabels = {
+  od: "OD",
+  os: "OS",
+  add: "Add",
+} as const;
+
 export default function DoctorPage() {
   const {
     queueItems,
@@ -209,24 +221,61 @@ export default function DoctorPage() {
               </div>
 
               {optometristWorkup ? (
-                <div className="mt-4 grid gap-3">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Vision Right
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.visionRight || "Not entered"}
-                      </p>
-                    </div>
+                <div className="mt-4 grid gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">
+                      Vision / VA
+                    </p>
 
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Vision Left
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.visionLeft || "Not entered"}
-                      </p>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            <th className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">
+                              Vision
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Distance OD
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Distance OS
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Near OD
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Near OS
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(Object.keys(visionRowLabels) as Array<
+                            keyof typeof visionRowLabels
+                          >).map((rowKey) => (
+                            <tr key={rowKey}>
+                              <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700">
+                                {visionRowLabels[rowKey]}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.vision?.[rowKey]?.distanceOD ||
+                                  "—"}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.vision?.[rowKey]?.distanceOS ||
+                                  "—"}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.vision?.[rowKey]?.nearOD ||
+                                  "—"}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.vision?.[rowKey]?.nearOS ||
+                                  "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
@@ -290,13 +339,71 @@ export default function DoctorPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-medium text-slate-500">
-                      Spectacle Draft Notes
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">
+                      Spectacle Draft
                     </p>
-                    <p className="mt-1 text-sm text-slate-800">
-                      {optometristWorkup.spectacleDraftNotes || "Not entered"}
-                    </p>
+
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="min-w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            <th className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">
+                              Eye
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Sph.
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Cyl.
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Axis
+                            </th>
+                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
+                              Vision
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(Object.keys(spectacleRowLabels) as Array<
+                            keyof typeof spectacleRowLabels
+                          >).map((rowKey) => (
+                            <tr key={rowKey}>
+                              <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700">
+                                {spectacleRowLabels[rowKey]}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.spectacleDraft?.[rowKey]
+                                  ?.sph || "—"}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.spectacleDraft?.[rowKey]
+                                  ?.cyl || "—"}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.spectacleDraft?.[rowKey]
+                                  ?.axis || "—"}
+                              </td>
+                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
+                                {optometristWorkup.spectacleDraft?.[rowKey]
+                                  ?.vision || "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Remarks
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.spectacleDraft?.remarks ||
+                          "Not entered"}
+                      </p>
+                    </div>
                   </div>
 
                   {optometristWorkup.updatedAt && (

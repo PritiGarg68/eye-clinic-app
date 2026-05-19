@@ -16,17 +16,39 @@ export type QueueStatus =
   | "Under Consultation"
   | "Completed";
 
+export type VisionEntry = {
+  distanceOD: string;
+  distanceOS: string;
+  nearOD: string;
+  nearOS: string;
+};
+
+export type SpectacleDraftRow = {
+  sph: string;
+  cyl: string;
+  axis: string;
+  vision: string;
+};
+
 export type OptometristWorkup = {
   chiefComplaint: string;
-  visionRight: string;
-  visionLeft: string;
+  vision: {
+    unaided: VisionEntry;
+    withGlasses: VisionEntry;
+    withPinHole: VisionEntry;
+  };
   refractionRight: string;
   refractionLeft: string;
   iopRight: string;
   iopLeft: string;
   dilationStatus: "Not Done" | "Waiting" | "Done";
   dilationNotes: string;
-  spectacleDraftNotes: string;
+  spectacleDraft: {
+    od: SpectacleDraftRow;
+    os: SpectacleDraftRow;
+    add: SpectacleDraftRow;
+    remarks: string;
+  };
   updatedAt?: string;
 };
 

@@ -6,7 +6,39 @@ import QueuePanel from "../components/QueuePanel";
 import { useQueue } from "../components/QueueProvider";
 
 export default function OptometristPage() {
-  const { queueItems, selectedQueueItem, selectQueueItem } = useQueue();
+  const {
+    queueItems,
+    selectedQueueItem,
+    selectQueueItem,
+    updateQueueItemStatus,
+  } = useQueue();
+
+  function handleStartWorkup() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    updateQueueItemStatus(selectedQueueItem.id, "Under Optometry");
+  }
+
+  function handleMarkDilated() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
+  }
+
+  function handleReadyForDoctor() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
+  }
 
   return (
     <AppShell
@@ -52,6 +84,10 @@ export default function OptometristPage() {
 
                 <p className="mt-1 text-sm text-slate-600">
                   {selectedQueueItem.visitType}
+                </p>
+
+                <p className="mt-2 inline-flex rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                  Status: {selectedQueueItem.status}
                 </p>
               </div>
             ) : (
@@ -104,11 +140,24 @@ export default function OptometristPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300">
+              <button
+                onClick={handleStartWorkup}
+                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
+              >
+                Start Workup
+              </button>
+
+              <button
+                onClick={handleMarkDilated}
+                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
+              >
                 Mark Dilated
               </button>
 
-              <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
+              <button
+                onClick={handleReadyForDoctor}
+                className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+              >
                 Ready for Doctor
               </button>
             </div>

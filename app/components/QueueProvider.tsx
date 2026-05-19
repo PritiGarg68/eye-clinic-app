@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { QueueItem, QueueStatus } from "../../types/queue";
+import { OptometristWorkup, QueueItem, QueueStatus } from "../../types/queue";
 
 type QueueContextValue = {
   queueItems: QueueItem[];
@@ -15,6 +15,10 @@ type QueueContextValue = {
   addQueueItem: (item: QueueItem) => void;
   selectQueueItem: (item: QueueItem | null) => void;
   updateQueueItemStatus: (itemId: string, status: QueueStatus) => void;
+  saveOptometristWorkup: (
+    itemId: string,
+    workup: OptometristWorkup
+  ) => void;
 };
 
 const QueueContext = createContext<QueueContextValue | null>(null);
@@ -83,6 +87,30 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function saveOptometristWorkup(
+    itemId: string,
+    workup: OptometristWorkup
+  ) {
+    const updatedWorkup: OptometristWorkup = {
+      ...workup,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setQueueItems((currentQueue) =>
+      currentQueue.map((item) =>
+        item.id === itemId
+          ? { ...item, optometristWorkup: updatedWorkup }
+          : item
+      )
+    );
+
+    setSelectedQueueItem((currentSelected) =>
+      currentSelected?.id === itemId
+        ? { ...currentSelected, optometristWorkup: updatedWorkup }
+        : currentSelected
+    );
+  }
+
   return (
     <QueueContext.Provider
       value={{
@@ -91,6 +119,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         addQueueItem,
         selectQueueItem,
         updateQueueItemStatus,
+        saveOptometristWorkup,
       }}
     >
       {children}

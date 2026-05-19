@@ -10,10 +10,25 @@ export type PaymentMode = "Cash" | "UPI" | "Card" | "None";
 export type QueueStatus =
   | "Waiting"
   | "Under Optometry"
+  | "Needs Optometry Review"
   | "Dilated Waiting"
   | "Ready for Doctor"
   | "Under Consultation"
   | "Completed";
+
+export type OptometristWorkup = {
+  chiefComplaint: string;
+  visionRight: string;
+  visionLeft: string;
+  refractionRight: string;
+  refractionLeft: string;
+  iopRight: string;
+  iopLeft: string;
+  dilationStatus: "Not Done" | "Waiting" | "Done";
+  dilationNotes: string;
+  spectacleDraftNotes: string;
+  updatedAt?: string;
+};
 
 export type QueueItem = {
   id: string;
@@ -26,4 +41,5 @@ export type QueueItem = {
   paymentMode: PaymentMode;
   amountPaid: number;
   status: QueueStatus;
+  optometristWorkup?: OptometristWorkup;
 };

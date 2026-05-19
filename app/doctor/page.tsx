@@ -17,6 +17,11 @@ export default function DoctorPage() {
 
   const [statusMessage, setStatusMessage] = useState("");
 
+  const optometristWorkup = selectedQueueItem?.optometristWorkup;
+
+  const canSendBackToOptometrist =
+    selectedQueueItem?.status === "Under Consultation";
+
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
     selectQueueItem(item);
     setStatusMessage("");
@@ -27,23 +32,68 @@ export default function DoctorPage() {
       alert("Please select a patient from the queue first.");
       return;
     }
-  
+
     if (selectedQueueItem.status === "Completed") {
       const shouldReopen = window.confirm(
         "This consultation is already completed. Do you still want to reopen it?"
       );
-  
+
       if (!shouldReopen) {
         return;
       }
-  
+
       updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
       setStatusMessage("Completed consultation reopened.");
       return;
     }
-  
+
+    if (selectedQueueItem.status === "Under Consultation") {
+      setStatusMessage("Consultation is already active.");
+      return;
+    }
+
+    if (selectedQueueItem.status !== "Ready for Doctor") {
+      const shouldOverride = window.confirm(
+        `This patient is currently marked as "${selectedQueueItem.status}", not "Ready for Doctor". Do you still want to start consultation?`
+      );
+
+      if (!shouldOverride) {
+        return;
+      }
+    }
+
     updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
     setStatusMessage("Consultation started.");
+  }
+
+  function handleSendBackToOptometrist() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    if (selectedQueueItem.status === "Completed") {
+      alert(
+        "This consultation is already completed. Reopen it first if changes are needed."
+      );
+      return;
+    }
+
+    if (selectedQueueItem.status !== "Under Consultation") {
+      alert("Patient can be sent back only after consultation has started.");
+      return;
+    }
+
+    const shouldSendBack = window.confirm(
+      "Send this patient back to optometrist for additional workup?"
+    );
+
+    if (!shouldSendBack) {
+      return;
+    }
+
+    updateQueueItemStatus(selectedQueueItem.id, "Needs Optometry Review");
+    setStatusMessage("Patient sent back to optometrist for additional workup.");
   }
 
   function handleCompleteConsultation() {
@@ -125,18 +175,142 @@ export default function DoctorPage() {
               <p className="text-sm font-medium text-slate-700">
                 Chief Complaints
               </p>
-              <p className="mt-2 text-sm text-slate-500">
-                Structured complaints and free-text notes will appear here.
-              </p>
+
+              {optometristWorkup?.chiefComplaint ? (
+                <p className="mt-2 text-sm text-slate-700">
+                  {optometristWorkup.chiefComplaint}
+                </p>
+              ) : (
+                <p className="mt-2 text-sm text-slate-500">
+                  No chief complaint entered yet.
+                </p>
+              )}
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">
-                Optometrist Findings
-              </p>
-              <p className="mt-2 text-sm text-slate-500">
-                VA, refraction, IOP, and dilation details will appear here.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">
+                    Optometrist Findings
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Workup entered by optometrist for doctor review.
+                  </p>
+                </div>
+
+                {canSendBackToOptometrist && (
+                  <button
+                    onClick={handleSendBackToOptometrist}
+                    className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200"
+                  >
+                    Send Back to Optometrist
+                  </button>
+                )}
+              </div>
+
+              {optometristWorkup ? (
+                <div className="mt-4 grid gap-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Vision Right
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.visionRight || "Not entered"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Vision Left
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.visionLeft || "Not entered"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Refraction Right
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.refractionRight || "Not entered"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Refraction Left
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.refractionLeft || "Not entered"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        IOP Right
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.iopRight || "Not entered"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        IOP Left
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.iopLeft || "Not entered"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Dilation Status
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.dilationStatus}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-500">
+                        Dilation Notes
+                      </p>
+                      <p className="mt-1 text-sm text-slate-800">
+                        {optometristWorkup.dilationNotes || "Not entered"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs font-medium text-slate-500">
+                      Spectacle Draft Notes
+                    </p>
+                    <p className="mt-1 text-sm text-slate-800">
+                      {optometristWorkup.spectacleDraftNotes || "Not entered"}
+                    </p>
+                  </div>
+
+                  {optometristWorkup.updatedAt && (
+                    <p className="text-xs text-slate-400">
+                      Last saved:{" "}
+                      {new Date(optometristWorkup.updatedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                  No optometrist workup saved yet.
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">

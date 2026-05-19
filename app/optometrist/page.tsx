@@ -1,11 +1,13 @@
+"use client";
+
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
-import { QueueItem } from "../../types/queue";
-
-const queueItems: QueueItem[] = [];
+import { useQueue } from "../components/QueueProvider";
 
 export default function OptometristPage() {
+  const { queueItems, selectedQueueItem, selectQueueItem } = useQueue();
+
   return (
     <AppShell
       title="Optometrist Workspace"
@@ -16,7 +18,11 @@ export default function OptometristPage() {
           title="Live Queue"
           subtitle="Patients ready for optometrist workup"
         >
-          <QueuePanel items={queueItems} />
+          <QueuePanel
+            items={queueItems}
+            selectedItemId={selectedQueueItem?.id}
+            onSelectItem={selectQueueItem}
+          />
         </SectionCard>
 
         <SectionCard
@@ -25,12 +31,46 @@ export default function OptometristPage() {
           className="lg:col-span-2"
         >
           <div className="grid gap-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            {selectedQueueItem ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-medium text-emerald-700">
+                  Selected Patient
+                </p>
+
+                <p className="mt-2 text-lg font-semibold text-slate-900">
+                  #{selectedQueueItem.tokenNumber} ·{" "}
+                  {selectedQueueItem.patientName}
+                </p>
+
+                <p className="text-sm text-slate-600">
+                  {selectedQueueItem.age} yrs / {selectedQueueItem.gender}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  {selectedQueueItem.uhid}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  {selectedQueueItem.visitType}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-700">
+                  No patient selected
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Select a patient from the queue to begin workup.
+                </p>
+              </div>
+            )}
+
+            <div className="rounded-xl border border-slate-200 p-4">
               <p className="text-sm font-medium text-slate-700">
-                No patient selected
+                Chief Complaint
               </p>
-              <p className="mt-1 text-sm text-slate-500">
-                Select a patient from the queue to begin workup.
+              <p className="mt-2 text-sm text-slate-500">
+                Presenting complaint will be entered here.
               </p>
             </div>
 

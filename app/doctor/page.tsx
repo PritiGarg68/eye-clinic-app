@@ -6,6 +6,7 @@ import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
+import PrescriptionPreview from "../components/PrescriptionPreview";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
@@ -87,6 +88,7 @@ export default function DoctorPage() {
 
   const [statusMessage, setStatusMessage] = useState("");
   const [consultationSaved, setConsultationSaved] = useState(false);
+  const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
   const [consultation, setConsultation] =
     useState<DoctorConsultation>(emptyConsultation);
 
@@ -95,26 +97,27 @@ export default function DoctorPage() {
   const canSendBackToOptometrist =
     selectedQueueItem?.status === "Under Consultation";
 
-  useEffect(() => {
-    setConsultation(
-      normalizeConsultation(
-        selectedQueueItem?.doctorConsultation,
-        selectedQueueItem?.optometristWorkup?.spectacleDraft
-      )
-    );
+  const finalSpectacleAdvice =
+    consultation.finalSpectacleAdvice || emptySpectacleAdvice;
 
-    setStatusMessage("");
-    setConsultationSaved(false);
-  }, [
-    selectedQueueItem?.id,
-    selectedQueueItem?.doctorConsultation,
-    selectedQueueItem?.optometristWorkup?.spectacleDraft,
-  ]);
+    useEffect(() => {
+        setConsultation(
+          normalizeConsultation(
+            selectedQueueItem?.doctorConsultation,
+            selectedQueueItem?.optometristWorkup?.spectacleDraft
+          )
+        );
+    
+        setStatusMessage("");
+        setConsultationSaved(false);
+        setShowPrescriptionPreview(false);
+      }, [selectedQueueItem?.id]);
 
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
     selectQueueItem(item);
     setStatusMessage("");
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function updateConsultationField<K extends keyof DoctorConsultation>(
@@ -127,6 +130,7 @@ export default function DoctorPage() {
     }));
 
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function updateFinalSpectacleField(
@@ -134,30 +138,42 @@ export default function DoctorPage() {
     field: SpectacleFieldKey,
     value: string
   ) {
-    setConsultation((current) => ({
-      ...current,
-      finalSpectacleAdvice: {
-        ...current.finalSpectacleAdvice,
-        [row]: {
-          ...current.finalSpectacleAdvice[row],
-          [field]: value,
+    setConsultation((current) => {
+      const currentAdvice =
+        current.finalSpectacleAdvice || emptySpectacleAdvice;
+
+      return {
+        ...current,
+        finalSpectacleAdvice: {
+          ...currentAdvice,
+          [row]: {
+            ...currentAdvice[row],
+            [field]: value,
+          },
         },
-      },
-    }));
+      };
+    });
 
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function updateFinalSpectacleRemarks(value: string) {
-    setConsultation((current) => ({
-      ...current,
-      finalSpectacleAdvice: {
-        ...current.finalSpectacleAdvice,
-        remarks: value,
-      },
-    }));
+    setConsultation((current) => {
+      const currentAdvice =
+        current.finalSpectacleAdvice || emptySpectacleAdvice;
+
+      return {
+        ...current,
+        finalSpectacleAdvice: {
+          ...currentAdvice,
+          remarks: value,
+        },
+      };
+    });
 
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function addMedicineRow() {
@@ -176,6 +192,7 @@ export default function DoctorPage() {
     }));
 
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function updateMedicineRow(
@@ -196,6 +213,7 @@ export default function DoctorPage() {
     }));
 
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function removeMedicineRow(medicineId: string) {
@@ -207,6 +225,7 @@ export default function DoctorPage() {
     }));
 
     setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
   }
 
   function handleStartConsultation() {
@@ -226,6 +245,7 @@ export default function DoctorPage() {
 
       updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
       setStatusMessage("Completed consultation reopened.");
+      setShowPrescriptionPreview(false);
       return;
     }
 
@@ -246,6 +266,7 @@ export default function DoctorPage() {
 
     updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
     setStatusMessage("Consultation started.");
+    setShowPrescriptionPreview(false);
   }
 
   function handleSendBackToOptometrist() {
@@ -276,6 +297,7 @@ export default function DoctorPage() {
 
     updateQueueItemStatus(selectedQueueItem.id, "Needs Optometry Review");
     setStatusMessage("Patient sent back to optometrist for additional workup.");
+    setShowPrescriptionPreview(false);
   }
 
   function handleSaveConsultationDraft() {
@@ -299,6 +321,19 @@ export default function DoctorPage() {
     updateQueueItemStatus(selectedQueueItem.id, "Completed");
     setConsultationSaved(true);
     setStatusMessage("Consultation completed.");
+    setShowPrescriptionPreview(false);
+  }
+
+  function handlePreviewPrescription() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
+    setConsultationSaved(true);
+    setShowPrescriptionPreview(true);
+    setStatusMessage("Prescription preview generated.");
   }
 
   return (
@@ -410,10 +445,7 @@ export default function DoctorPage() {
                       Vision / VA
                     </p>
 
-                    <VisionTable
-                      value={optometristWorkup.vision}
-                      readOnly
-                    />
+                    <VisionTable value={optometristWorkup.vision} readOnly />
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
@@ -536,9 +568,9 @@ export default function DoctorPage() {
 
               <SpectacleTable
                 value={{
-                  od: consultation.finalSpectacleAdvice.od,
-                  os: consultation.finalSpectacleAdvice.os,
-                  add: consultation.finalSpectacleAdvice.add,
+                  od: finalSpectacleAdvice.od,
+                  os: finalSpectacleAdvice.os,
+                  add: finalSpectacleAdvice.add,
                 }}
                 onChange={updateFinalSpectacleField}
               />
@@ -547,7 +579,7 @@ export default function DoctorPage() {
                 <label className="grid gap-2 text-sm font-medium text-slate-700">
                   Final Spectacle Remarks
                   <textarea
-                    value={consultation.finalSpectacleAdvice.remarks}
+                    value={finalSpectacleAdvice.remarks}
                     onChange={(event) =>
                       updateFinalSpectacleRemarks(event.target.value)
                     }
@@ -748,7 +780,10 @@ export default function DoctorPage() {
                 Save Draft
               </button>
 
-              <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
+              <button
+                onClick={handlePreviewPrescription}
+                className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+              >
                 Preview Prescription
               </button>
 
@@ -759,6 +794,16 @@ export default function DoctorPage() {
                 Complete Consultation
               </button>
             </div>
+
+            {showPrescriptionPreview && (
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="mb-4 text-sm font-medium text-slate-700">
+                  Prescription Preview
+                </p>
+
+                <PrescriptionPreview patient={selectedQueueItem} />
+              </div>
+            )}
           </div>
         </SectionCard>
       </div>

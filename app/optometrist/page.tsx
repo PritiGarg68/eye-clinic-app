@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
+import VisionTable from "../components/VisionTable";
+import SpectacleTable from "../components/SpectacleTable";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
@@ -46,18 +48,6 @@ const emptyWorkup: OptometristWorkup = {
     remarks: "",
   },
 };
-
-const visionRowLabels = {
-  unaided: "Unaided",
-  withGlasses: "With Glasses",
-  withPinHole: "With Pin Hole",
-} as const;
-
-const spectacleRowLabels = {
-  od: "OD",
-  os: "OS",
-  add: "Add",
-} as const;
 
 function normalizeWorkup(
   savedWorkup?: Partial<OptometristWorkup>
@@ -365,102 +355,15 @@ export default function OptometristPage() {
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">Vision / VA</p>
+              <p className="mb-4 text-sm font-medium text-slate-700">
+                Vision / VA
+              </p>
 
-              <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50">
-                      <th className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">
-                        Vision
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Distance OD
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Distance OS
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Near OD
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Near OS
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Object.keys(visionRowLabels) as VisionRowKey[]).map(
-                      (rowKey) => (
-                        <tr key={rowKey}>
-                          <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700">
-                            {visionRowLabels[rowKey]}
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.vision[rowKey].distanceOD}
-                              onChange={(event) =>
-                                updateVisionField(
-                                  rowKey,
-                                  "distanceOD",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.vision[rowKey].distanceOS}
-                              onChange={(event) =>
-                                updateVisionField(
-                                  rowKey,
-                                  "distanceOS",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.vision[rowKey].nearOD}
-                              onChange={(event) =>
-                                updateVisionField(
-                                  rowKey,
-                                  "nearOD",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.vision[rowKey].nearOS}
-                              onChange={(event) =>
-                                updateVisionField(
-                                  rowKey,
-                                  "nearOS",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <VisionTable
+                value={workup.vision}
+                readOnly={isReadOnly}
+                onChange={updateVisionField}
+              />
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
@@ -555,104 +458,19 @@ export default function OptometristPage() {
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">
+              <p className="mb-4 text-sm font-medium text-slate-700">
                 Spectacle Draft
               </p>
 
-              <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50">
-                      <th className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">
-                        Eye
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Sph.
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Cyl.
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Axis
-                      </th>
-                      <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                        Vision
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Object.keys(spectacleRowLabels) as SpectacleRowKey[]).map(
-                      (rowKey) => (
-                        <tr key={rowKey}>
-                          <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700">
-                            {spectacleRowLabels[rowKey]}
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.spectacleDraft[rowKey].sph}
-                              onChange={(event) =>
-                                updateSpectacleField(
-                                  rowKey,
-                                  "sph",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.spectacleDraft[rowKey].cyl}
-                              onChange={(event) =>
-                                updateSpectacleField(
-                                  rowKey,
-                                  "cyl",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.spectacleDraft[rowKey].axis}
-                              onChange={(event) =>
-                                updateSpectacleField(
-                                  rowKey,
-                                  "axis",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                          <td className="border border-slate-200 p-2">
-                            <input
-                              type="text"
-                              value={workup.spectacleDraft[rowKey].vision}
-                              onChange={(event) =>
-                                updateSpectacleField(
-                                  rowKey,
-                                  "vision",
-                                  event.target.value
-                                )
-                              }
-                              disabled={isReadOnly}
-                              className="w-full rounded-lg border border-slate-300 px-2 py-2 outline-none focus:border-slate-500 disabled:bg-slate-100"
-                            />
-                          </td>
-                        </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <SpectacleTable
+                value={{
+                  od: workup.spectacleDraft.od,
+                  os: workup.spectacleDraft.os,
+                  add: workup.spectacleDraft.add,
+                }}
+                readOnly={isReadOnly}
+                onChange={updateSpectacleField}
+              />
 
               <div className="mt-4">
                 <label className="grid gap-2 text-sm font-medium text-slate-700">

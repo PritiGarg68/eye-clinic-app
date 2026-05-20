@@ -7,7 +7,12 @@ import {
   useEffect,
   useState,
 } from "react";
-import { OptometristWorkup, QueueItem, QueueStatus } from "../../types/queue";
+import {
+  DoctorConsultation,
+  OptometristWorkup,
+  QueueItem,
+  QueueStatus,
+} from "../../types/queue";
 
 type QueueContextValue = {
   queueItems: QueueItem[];
@@ -18,6 +23,10 @@ type QueueContextValue = {
   saveOptometristWorkup: (
     itemId: string,
     workup: OptometristWorkup
+  ) => void;
+  saveDoctorConsultation: (
+    itemId: string,
+    consultation: DoctorConsultation
   ) => void;
 };
 
@@ -111,6 +120,30 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function saveDoctorConsultation(
+    itemId: string,
+    consultation: DoctorConsultation
+  ) {
+    const updatedConsultation: DoctorConsultation = {
+      ...consultation,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setQueueItems((currentQueue) =>
+      currentQueue.map((item) =>
+        item.id === itemId
+          ? { ...item, doctorConsultation: updatedConsultation }
+          : item
+      )
+    );
+
+    setSelectedQueueItem((currentSelected) =>
+      currentSelected?.id === itemId
+        ? { ...currentSelected, doctorConsultation: updatedConsultation }
+        : currentSelected
+    );
+  }
+
   return (
     <QueueContext.Provider
       value={{
@@ -120,6 +153,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         selectQueueItem,
         updateQueueItemStatus,
         saveOptometristWorkup,
+        saveDoctorConsultation,
       }}
     >
       {children}

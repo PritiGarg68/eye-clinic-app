@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
+import { DoctorConsultation, MedicineRow } from "../../types/queue";
 
 const visionRowLabels = {
   unaided: "Unaided",
@@ -19,24 +20,109 @@ const spectacleRowLabels = {
   add: "Add",
 } as const;
 
+const emptyConsultation: DoctorConsultation = {
+  diagnosis: "",
+  medicines: [],
+  advice: "",
+  followUpDate: "",
+  notes: "",
+};
+
 export default function DoctorPage() {
   const {
     queueItems,
     selectedQueueItem,
     selectQueueItem,
     updateQueueItemStatus,
+    saveDoctorConsultation,
   } = useQueue();
 
   const [statusMessage, setStatusMessage] = useState("");
+  const [consultationSaved, setConsultationSaved] = useState(false);
+  const [consultation, setConsultation] =
+    useState<DoctorConsultation>(emptyConsultation);
 
   const optometristWorkup = selectedQueueItem?.optometristWorkup;
 
   const canSendBackToOptometrist =
     selectedQueueItem?.status === "Under Consultation";
 
+  useEffect(() => {
+    if (selectedQueueItem?.doctorConsultation) {
+      setConsultation(selectedQueueItem.doctorConsultation);
+    } else {
+      setConsultation(emptyConsultation);
+    }
+
+    setStatusMessage("");
+    setConsultationSaved(false);
+  }, [selectedQueueItem?.id, selectedQueueItem?.doctorConsultation]);
+
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
     selectQueueItem(item);
     setStatusMessage("");
+    setConsultationSaved(false);
+  }
+
+  function updateConsultationField<K extends keyof DoctorConsultation>(
+    field: K,
+    value: DoctorConsultation[K]
+  ) {
+    setConsultation((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    setConsultationSaved(false);
+  }
+
+  function addMedicineRow() {
+    const newMedicine: MedicineRow = {
+      id: `medicine-${Date.now()}`,
+      medicineName: "",
+      eye: "Both Eyes",
+      frequency: "",
+      duration: "",
+      instructions: "",
+    };
+
+    setConsultation((current) => ({
+      ...current,
+      medicines: [...current.medicines, newMedicine],
+    }));
+
+    setConsultationSaved(false);
+  }
+
+  function updateMedicineRow(
+    medicineId: string,
+    field: keyof MedicineRow,
+    value: MedicineRow[keyof MedicineRow]
+  ) {
+    setConsultation((current) => ({
+      ...current,
+      medicines: current.medicines.map((medicine) =>
+        medicine.id === medicineId
+          ? {
+              ...medicine,
+              [field]: value,
+            }
+          : medicine
+      ),
+    }));
+
+    setConsultationSaved(false);
+  }
+
+  function removeMedicineRow(medicineId: string) {
+    setConsultation((current) => ({
+      ...current,
+      medicines: current.medicines.filter(
+        (medicine) => medicine.id !== medicineId
+      ),
+    }));
+
+    setConsultationSaved(false);
   }
 
   function handleStartConsultation() {
@@ -108,13 +194,26 @@ export default function DoctorPage() {
     setStatusMessage("Patient sent back to optometrist for additional workup.");
   }
 
+  function handleSaveConsultationDraft() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
+    setConsultationSaved(true);
+    setStatusMessage("Consultation draft saved.");
+  }
+
   function handleCompleteConsultation() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
     updateQueueItemStatus(selectedQueueItem.id, "Completed");
+    setConsultationSaved(true);
     setStatusMessage("Consultation completed.");
   }
 
@@ -257,12 +356,12 @@ export default function DoctorPage() {
                                 {visionRowLabels[rowKey]}
                               </td>
                               <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.vision?.[rowKey]?.distanceOD ||
-                                  "—"}
+                                {optometristWorkup.vision?.[rowKey]
+                                  ?.distanceOD || "—"}
                               </td>
                               <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.vision?.[rowKey]?.distanceOS ||
-                                  "—"}
+                                {optometristWorkup.vision?.[rowKey]
+                                  ?.distanceOS || "—"}
                               </td>
                               <td className="border border-slate-200 px-3 py-2 text-slate-800">
                                 {optometristWorkup.vision?.[rowKey]?.nearOD ||
@@ -421,28 +520,193 @@ export default function DoctorPage() {
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">Diagnosis</p>
-              <p className="mt-2 text-sm text-slate-500">
-                Diagnosis selection and notes will appear here.
-              </p>
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Diagnosis / Impression
+                <textarea
+                  value={consultation.diagnosis}
+                  onChange={(event) =>
+                    updateConsultationField("diagnosis", event.target.value)
+                  }
+                  placeholder="Enter diagnosis or clinical impression"
+                  className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                />
+              </label>
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">Medicines</p>
-              <p className="mt-2 text-sm text-slate-500">
-                Medicine rows with eye, frequency, duration, and notes will
-                appear here.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">
+                    Medicines
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Add medicine rows for prescription draft.
+                  </p>
+                </div>
+
+                <button
+                  onClick={addMedicineRow}
+                  className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                >
+                  Add Medicine
+                </button>
+              </div>
+
+              {consultation.medicines.length === 0 ? (
+                <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                  No medicines added yet.
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  {consultation.medicines.map((medicine, index) => (
+                    <div
+                      key={medicine.id}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-700">
+                          Medicine #{index + 1}
+                        </p>
+
+                        <button
+                          onClick={() => removeMedicineRow(medicine.id)}
+                          className="rounded-lg bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <input
+                          type="text"
+                          value={medicine.medicineName}
+                          onChange={(event) =>
+                            updateMedicineRow(
+                              medicine.id,
+                              "medicineName",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Medicine name"
+                          className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                        />
+
+                        <select
+                          value={medicine.eye}
+                          onChange={(event) =>
+                            updateMedicineRow(
+                              medicine.id,
+                              "eye",
+                              event.target.value as MedicineRow["eye"]
+                            )
+                          }
+                          className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                        >
+                          <option value="Both Eyes">Both Eyes</option>
+                          <option value="Right Eye">Right Eye</option>
+                          <option value="Left Eye">Left Eye</option>
+                          <option value="Oral">Oral</option>
+                          <option value="Other">Other</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          value={medicine.frequency}
+                          onChange={(event) =>
+                            updateMedicineRow(
+                              medicine.id,
+                              "frequency",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Frequency e.g. 4 times/day"
+                          className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                        />
+
+                        <input
+                          type="text"
+                          value={medicine.duration}
+                          onChange={(event) =>
+                            updateMedicineRow(
+                              medicine.id,
+                              "duration",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Duration e.g. 7 days"
+                          className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
+                        />
+
+                        <textarea
+                          value={medicine.instructions}
+                          onChange={(event) =>
+                            updateMedicineRow(
+                              medicine.id,
+                              "instructions",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Instructions optional"
+                          className="min-h-20 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 md:col-span-2"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">
-                Advice & Follow-Up
-              </p>
-              <p className="mt-2 text-sm text-slate-500">
-                Advice and follow-up date will appear here.
-              </p>
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Advice
+                <textarea
+                  value={consultation.advice}
+                  onChange={(event) =>
+                    updateConsultationField("advice", event.target.value)
+                  }
+                  placeholder="General advice, precautions, tests, procedures..."
+                  className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                />
+              </label>
             </div>
+
+            <div className="rounded-xl border border-slate-200 p-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium text-slate-700">
+                  Follow-Up Date
+                  <input
+                    type="date"
+                    value={consultation.followUpDate}
+                    onChange={(event) =>
+                      updateConsultationField(
+                        "followUpDate",
+                        event.target.value
+                      )
+                    }
+                    className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                  />
+                </label>
+
+                <label className="grid gap-2 text-sm font-medium text-slate-700">
+                  Doctor Notes
+                  <input
+                    type="text"
+                    value={consultation.notes}
+                    onChange={(event) =>
+                      updateConsultationField("notes", event.target.value)
+                    }
+                    placeholder="Internal notes optional"
+                    className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {consultationSaved && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+                Consultation draft saved for selected patient.
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-3 pt-2">
               <button
@@ -452,7 +716,10 @@ export default function DoctorPage() {
                 Start Consultation
               </button>
 
-              <button className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300">
+              <button
+                onClick={handleSaveConsultationDraft}
+                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
+              >
                 Save Draft
               </button>
 

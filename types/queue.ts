@@ -52,6 +52,24 @@ export type OptometristWorkup = {
   updatedAt?: string;
 };
 
+export type MedicineRow = {
+  id: string;
+  medicineName: string;
+  eye: "Both Eyes" | "Right Eye" | "Left Eye" | "Oral" | "Other";
+  frequency: string;
+  duration: string;
+  instructions: string;
+};
+
+export type DoctorConsultation = {
+  diagnosis: string;
+  medicines: MedicineRow[];
+  advice: string;
+  followUpDate: string;
+  notes: string;
+  updatedAt?: string;
+};
+
 export type QueueItem = {
   id: string;
   tokenNumber: number;
@@ -64,4 +82,5 @@ export type QueueItem = {
   amountPaid: number;
   status: QueueStatus;
   optometristWorkup?: OptometristWorkup;
+  doctorConsultation?: DoctorConsultation;
 };

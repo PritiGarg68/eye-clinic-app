@@ -30,6 +30,13 @@ export type SpectacleDraftRow = {
   vision: string;
 };
 
+export type SpectacleAdvice = {
+  od: SpectacleDraftRow;
+  os: SpectacleDraftRow;
+  add: SpectacleDraftRow;
+  remarks: string;
+};
+
 export type OptometristWorkup = {
   chiefComplaint: string;
   vision: {
@@ -43,12 +50,7 @@ export type OptometristWorkup = {
   iopLeft: string;
   dilationStatus: "Not Done" | "Waiting" | "Done";
   dilationNotes: string;
-  spectacleDraft: {
-    od: SpectacleDraftRow;
-    os: SpectacleDraftRow;
-    add: SpectacleDraftRow;
-    remarks: string;
-  };
+  spectacleDraft: SpectacleAdvice;
   updatedAt?: string;
 };
 
@@ -67,6 +69,7 @@ export type DoctorConsultation = {
   advice: string;
   followUpDate: string;
   notes: string;
+  finalSpectacleAdvice: SpectacleAdvice;
   updatedAt?: string;
 };
 

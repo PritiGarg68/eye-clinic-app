@@ -4,21 +4,30 @@ import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
+import VisionTable from "../components/VisionTable";
+import SpectacleTable from "../components/SpectacleTable";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
-import { DoctorConsultation, MedicineRow } from "../../types/queue";
+import {
+  DoctorConsultation,
+  MedicineRow,
+  SpectacleAdvice,
+  SpectacleDraftRow,
+} from "../../types/queue";
 
-const visionRowLabels = {
-  unaided: "Unaided",
-  withGlasses: "With Glasses",
-  withPinHole: "With Pin Hole",
-} as const;
+const emptySpectacleRow: SpectacleDraftRow = {
+  sph: "",
+  cyl: "",
+  axis: "",
+  vision: "",
+};
 
-const spectacleRowLabels = {
-  od: "OD",
-  os: "OS",
-  add: "Add",
-} as const;
+const emptySpectacleAdvice: SpectacleAdvice = {
+  od: { ...emptySpectacleRow },
+  os: { ...emptySpectacleRow },
+  add: { ...emptySpectacleRow },
+  remarks: "",
+};
 
 const emptyConsultation: DoctorConsultation = {
   diagnosis: "",
@@ -26,7 +35,46 @@ const emptyConsultation: DoctorConsultation = {
   advice: "",
   followUpDate: "",
   notes: "",
+  finalSpectacleAdvice: emptySpectacleAdvice,
 };
+
+function normalizeSpectacleAdvice(
+  savedAdvice?: Partial<SpectacleAdvice>
+): SpectacleAdvice {
+  return {
+    od: {
+      ...emptySpectacleAdvice.od,
+      ...savedAdvice?.od,
+    },
+    os: {
+      ...emptySpectacleAdvice.os,
+      ...savedAdvice?.os,
+    },
+    add: {
+      ...emptySpectacleAdvice.add,
+      ...savedAdvice?.add,
+    },
+    remarks: savedAdvice?.remarks ?? "",
+  };
+}
+
+function normalizeConsultation(
+  savedConsultation?: Partial<DoctorConsultation>,
+  optometristDraft?: SpectacleAdvice
+): DoctorConsultation {
+  const finalSpectacleAdvice =
+    savedConsultation?.finalSpectacleAdvice || optometristDraft;
+
+  return {
+    ...emptyConsultation,
+    ...savedConsultation,
+    medicines: savedConsultation?.medicines || [],
+    finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
+  };
+}
+
+type SpectacleRowKey = "od" | "os" | "add";
+type SpectacleFieldKey = keyof SpectacleDraftRow;
 
 export default function DoctorPage() {
   const {
@@ -48,15 +96,20 @@ export default function DoctorPage() {
     selectedQueueItem?.status === "Under Consultation";
 
   useEffect(() => {
-    if (selectedQueueItem?.doctorConsultation) {
-      setConsultation(selectedQueueItem.doctorConsultation);
-    } else {
-      setConsultation(emptyConsultation);
-    }
+    setConsultation(
+      normalizeConsultation(
+        selectedQueueItem?.doctorConsultation,
+        selectedQueueItem?.optometristWorkup?.spectacleDraft
+      )
+    );
 
     setStatusMessage("");
     setConsultationSaved(false);
-  }, [selectedQueueItem?.id, selectedQueueItem?.doctorConsultation]);
+  }, [
+    selectedQueueItem?.id,
+    selectedQueueItem?.doctorConsultation,
+    selectedQueueItem?.optometristWorkup?.spectacleDraft,
+  ]);
 
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
     selectQueueItem(item);
@@ -71,6 +124,37 @@ export default function DoctorPage() {
     setConsultation((current) => ({
       ...current,
       [field]: value,
+    }));
+
+    setConsultationSaved(false);
+  }
+
+  function updateFinalSpectacleField(
+    row: SpectacleRowKey,
+    field: SpectacleFieldKey,
+    value: string
+  ) {
+    setConsultation((current) => ({
+      ...current,
+      finalSpectacleAdvice: {
+        ...current.finalSpectacleAdvice,
+        [row]: {
+          ...current.finalSpectacleAdvice[row],
+          [field]: value,
+        },
+      },
+    }));
+
+    setConsultationSaved(false);
+  }
+
+  function updateFinalSpectacleRemarks(value: string) {
+    setConsultation((current) => ({
+      ...current,
+      finalSpectacleAdvice: {
+        ...current.finalSpectacleAdvice,
+        remarks: value,
+      },
     }));
 
     setConsultationSaved(false);
@@ -322,60 +406,14 @@ export default function DoctorPage() {
               {optometristWorkup ? (
                 <div className="mt-4 grid gap-4">
                   <div>
-                    <p className="text-sm font-medium text-slate-700">
+                    <p className="mb-3 text-sm font-medium text-slate-700">
                       Vision / VA
                     </p>
 
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="min-w-full border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">
-                              Vision
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Distance OD
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Distance OS
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Near OD
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Near OS
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(Object.keys(visionRowLabels) as Array<
-                            keyof typeof visionRowLabels
-                          >).map((rowKey) => (
-                            <tr key={rowKey}>
-                              <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700">
-                                {visionRowLabels[rowKey]}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.vision?.[rowKey]
-                                  ?.distanceOD || "—"}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.vision?.[rowKey]
-                                  ?.distanceOS || "—"}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.vision?.[rowKey]?.nearOD ||
-                                  "—"}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.vision?.[rowKey]?.nearOS ||
-                                  "—"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <VisionTable
+                      value={optometristWorkup.vision}
+                      readOnly
+                    />
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
@@ -439,67 +477,25 @@ export default function DoctorPage() {
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-slate-700">
-                      Spectacle Draft
+                    <p className="mb-3 text-sm font-medium text-slate-700">
+                      Optometrist Spectacle Draft
                     </p>
 
-                    <div className="mt-3 overflow-x-auto">
-                      <table className="min-w-full border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="border border-slate-200 px-3 py-2 text-left font-medium text-slate-700">
-                              Eye
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Sph.
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Cyl.
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Axis
-                            </th>
-                            <th className="border border-slate-200 px-3 py-2 text-center font-medium text-slate-700">
-                              Vision
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(Object.keys(spectacleRowLabels) as Array<
-                            keyof typeof spectacleRowLabels
-                          >).map((rowKey) => (
-                            <tr key={rowKey}>
-                              <td className="border border-slate-200 px-3 py-2 font-medium text-slate-700">
-                                {spectacleRowLabels[rowKey]}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.spectacleDraft?.[rowKey]
-                                  ?.sph || "—"}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.spectacleDraft?.[rowKey]
-                                  ?.cyl || "—"}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.spectacleDraft?.[rowKey]
-                                  ?.axis || "—"}
-                              </td>
-                              <td className="border border-slate-200 px-3 py-2 text-slate-800">
-                                {optometristWorkup.spectacleDraft?.[rowKey]
-                                  ?.vision || "—"}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <SpectacleTable
+                      value={{
+                        od: optometristWorkup.spectacleDraft.od,
+                        os: optometristWorkup.spectacleDraft.os,
+                        add: optometristWorkup.spectacleDraft.add,
+                      }}
+                      readOnly
+                    />
 
                     <div className="mt-3 rounded-xl bg-slate-50 p-3">
                       <p className="text-xs font-medium text-slate-500">
                         Remarks
                       </p>
                       <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.spectacleDraft?.remarks ||
+                        {optometristWorkup.spectacleDraft.remarks ||
                           "Not entered"}
                       </p>
                     </div>
@@ -531,6 +527,35 @@ export default function DoctorPage() {
                   className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
               </label>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-4">
+              <p className="mb-4 text-sm font-medium text-slate-700">
+                Final Spectacle Advice
+              </p>
+
+              <SpectacleTable
+                value={{
+                  od: consultation.finalSpectacleAdvice.od,
+                  os: consultation.finalSpectacleAdvice.os,
+                  add: consultation.finalSpectacleAdvice.add,
+                }}
+                onChange={updateFinalSpectacleField}
+              />
+
+              <div className="mt-4">
+                <label className="grid gap-2 text-sm font-medium text-slate-700">
+                  Final Spectacle Remarks
+                  <textarea
+                    value={consultation.finalSpectacleAdvice.remarks}
+                    onChange={(event) =>
+                      updateFinalSpectacleRemarks(event.target.value)
+                    }
+                    placeholder="Final spectacle advice remarks"
+                    className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">

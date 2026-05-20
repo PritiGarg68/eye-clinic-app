@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
-import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
 import MedicineEditor from "../components/MedicineEditor";
+import OptometristFindingsView from "../components/OptometristFindingsView";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
@@ -418,135 +418,11 @@ export default function DoctorPage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-slate-200 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-700">
-                    Optometrist Findings
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Workup entered by optometrist for doctor review.
-                  </p>
-                </div>
-
-                {canSendBackToOptometrist && (
-                  <button
-                    onClick={handleSendBackToOptometrist}
-                    className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200"
-                  >
-                    Send Back to Optometrist
-                  </button>
-                )}
-              </div>
-
-              {optometristWorkup ? (
-                <div className="mt-4 grid gap-4">
-                  <div>
-                    <p className="mb-3 text-sm font-medium text-slate-700">
-                      Vision / VA
-                    </p>
-
-                    <VisionTable value={optometristWorkup.vision} readOnly />
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Refraction Right
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.refractionRight || "Not entered"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Refraction Left
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.refractionLeft || "Not entered"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        IOP Right
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.iopRight || "Not entered"}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        IOP Left
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.iopLeft || "Not entered"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Dilation Status
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.dilationStatus}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Dilation Notes
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.dilationNotes || "Not entered"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-medium text-slate-700">
-                      Optometrist Spectacle Draft
-                    </p>
-
-                    <SpectacleTable
-                      value={{
-                        od: optometristWorkup.spectacleDraft.od,
-                        os: optometristWorkup.spectacleDraft.os,
-                        add: optometristWorkup.spectacleDraft.add,
-                      }}
-                      readOnly
-                    />
-
-                    <div className="mt-3 rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-medium text-slate-500">
-                        Remarks
-                      </p>
-                      <p className="mt-1 text-sm text-slate-800">
-                        {optometristWorkup.spectacleDraft.remarks ||
-                          "Not entered"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {optometristWorkup.updatedAt && (
-                    <p className="text-xs text-slate-400">
-                      Last saved:{" "}
-                      {new Date(optometristWorkup.updatedAt).toLocaleString()}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-                  No optometrist workup saved yet.
-                </div>
-              )}
-            </div>
+            <OptometristFindingsView
+              workup={optometristWorkup}
+              canSendBackToOptometrist={canSendBackToOptometrist}
+              onSendBackToOptometrist={handleSendBackToOptometrist}
+            />
 
             <div className="rounded-xl border border-slate-200 p-4">
               <label className="grid gap-2 text-sm font-medium text-slate-700">

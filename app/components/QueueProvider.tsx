@@ -10,9 +10,12 @@ import {
 import {
   DoctorConsultation,
   OptometristWorkup,
+  PaymentMode,
   QueueItem,
   QueueStatus,
+  VisitType,
 } from "../../types/queue";
+import { Patient } from "../../types/patient";
 
 type QueueContextValue = {
   queueItems: QueueItem[];
@@ -20,6 +23,18 @@ type QueueContextValue = {
   addQueueItem: (item: QueueItem) => void;
   selectQueueItem: (item: QueueItem | null) => void;
   updateQueueItemStatus: (itemId: string, status: QueueStatus) => void;
+  updateQueueItemPayment: (
+    itemId: string,
+    paymentMode: PaymentMode,
+    amountPaid: number,
+    visitType: VisitType
+  ) => void;
+  updateQueueItemPatientDetails: (
+    itemId: string,
+    patientName: string,
+    age: number,
+    gender: Patient["gender"]
+  ) => void;
   saveOptometristWorkup: (
     itemId: string,
     workup: OptometristWorkup
@@ -30,10 +45,9 @@ type QueueContextValue = {
   ) => void;
 };
 
-const QueueContext = createContext<QueueContextValue | null>(null);
+const QueueContext = createContext<QueueContextValue | undefined>(undefined);
 
-const QUEUE_STORAGE_KEY = "eye-clinic-queue-items";
-const SELECTED_QUEUE_STORAGE_KEY = "eye-clinic-selected-queue-item";
+const STORAGE_KEY = "eye-clinic-queue";
 
 export function QueueProvider({ children }: { children: ReactNode }) {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
@@ -41,37 +55,20 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     useState<QueueItem | null>(null);
 
   useEffect(() => {
-    const savedQueue = window.localStorage.getItem(QUEUE_STORAGE_KEY);
-    const savedSelectedQueueItem = window.localStorage.getItem(
-      SELECTED_QUEUE_STORAGE_KEY
-    );
+    const savedQueue = window.localStorage.getItem(STORAGE_KEY);
 
     if (savedQueue) {
-      setQueueItems(JSON.parse(savedQueue));
-    }
-
-    if (savedSelectedQueueItem) {
-      setSelectedQueueItem(JSON.parse(savedSelectedQueueItem));
+      try {
+        setQueueItems(JSON.parse(savedQueue));
+      } catch {
+        setQueueItems([]);
+      }
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      QUEUE_STORAGE_KEY,
-      JSON.stringify(queueItems)
-    );
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queueItems));
   }, [queueItems]);
-
-  useEffect(() => {
-    if (selectedQueueItem) {
-      window.localStorage.setItem(
-        SELECTED_QUEUE_STORAGE_KEY,
-        JSON.stringify(selectedQueueItem)
-      );
-    } else {
-      window.localStorage.removeItem(SELECTED_QUEUE_STORAGE_KEY);
-    }
-  }, [selectedQueueItem]);
 
   function addQueueItem(item: QueueItem) {
     setQueueItems((currentQueue) => [...currentQueue, item]);
@@ -85,13 +82,83 @@ export function QueueProvider({ children }: { children: ReactNode }) {
   function updateQueueItemStatus(itemId: string, status: QueueStatus) {
     setQueueItems((currentQueue) =>
       currentQueue.map((item) =>
-        item.id === itemId ? { ...item, status } : item
+        item.id === itemId
+          ? {
+              ...item,
+              status,
+            }
+          : item
       )
     );
 
     setSelectedQueueItem((currentSelected) =>
       currentSelected?.id === itemId
-        ? { ...currentSelected, status }
+        ? {
+            ...currentSelected,
+            status,
+          }
+        : currentSelected
+    );
+  }
+
+  function updateQueueItemPayment(
+    itemId: string,
+    paymentMode: PaymentMode,
+    amountPaid: number,
+    visitType: VisitType
+  ) {
+    setQueueItems((currentQueue) =>
+      currentQueue.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              paymentMode,
+              amountPaid,
+              visitType,
+            }
+          : item
+      )
+    );
+
+    setSelectedQueueItem((currentSelected) =>
+      currentSelected?.id === itemId
+        ? {
+            ...currentSelected,
+            paymentMode,
+            amountPaid,
+            visitType,
+          }
+        : currentSelected
+    );
+  }
+
+  function updateQueueItemPatientDetails(
+    itemId: string,
+    patientName: string,
+    age: number,
+    gender: Patient["gender"]
+  ) {
+    setQueueItems((currentQueue) =>
+      currentQueue.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              patientName,
+              age,
+              gender,
+            }
+          : item
+      )
+    );
+
+    setSelectedQueueItem((currentSelected) =>
+      currentSelected?.id === itemId
+        ? {
+            ...currentSelected,
+            patientName,
+            age,
+            gender,
+          }
         : currentSelected
     );
   }
@@ -100,7 +167,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     itemId: string,
     workup: OptometristWorkup
   ) {
-    const updatedWorkup: OptometristWorkup = {
+    const workupWithTimestamp: OptometristWorkup = {
       ...workup,
       updatedAt: new Date().toISOString(),
     };
@@ -108,14 +175,20 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     setQueueItems((currentQueue) =>
       currentQueue.map((item) =>
         item.id === itemId
-          ? { ...item, optometristWorkup: updatedWorkup }
+          ? {
+              ...item,
+              optometristWorkup: workupWithTimestamp,
+            }
           : item
       )
     );
 
     setSelectedQueueItem((currentSelected) =>
       currentSelected?.id === itemId
-        ? { ...currentSelected, optometristWorkup: updatedWorkup }
+        ? {
+            ...currentSelected,
+            optometristWorkup: workupWithTimestamp,
+          }
         : currentSelected
     );
   }
@@ -124,7 +197,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     itemId: string,
     consultation: DoctorConsultation
   ) {
-    const updatedConsultation: DoctorConsultation = {
+    const consultationWithTimestamp: DoctorConsultation = {
       ...consultation,
       updatedAt: new Date().toISOString(),
     };
@@ -132,14 +205,20 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     setQueueItems((currentQueue) =>
       currentQueue.map((item) =>
         item.id === itemId
-          ? { ...item, doctorConsultation: updatedConsultation }
+          ? {
+              ...item,
+              doctorConsultation: consultationWithTimestamp,
+            }
           : item
       )
     );
 
     setSelectedQueueItem((currentSelected) =>
       currentSelected?.id === itemId
-        ? { ...currentSelected, doctorConsultation: updatedConsultation }
+        ? {
+            ...currentSelected,
+            doctorConsultation: consultationWithTimestamp,
+          }
         : currentSelected
     );
   }
@@ -152,6 +231,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         addQueueItem,
         selectQueueItem,
         updateQueueItemStatus,
+        updateQueueItemPayment,
+        updateQueueItemPatientDetails,
         saveOptometristWorkup,
         saveDoctorConsultation,
       }}
@@ -165,7 +246,7 @@ export function useQueue() {
   const context = useContext(QueueContext);
 
   if (!context) {
-    throw new Error("useQueue must be used inside QueueProvider");
+    throw new Error("useQueue must be used within QueueProvider");
   }
 
   return context;

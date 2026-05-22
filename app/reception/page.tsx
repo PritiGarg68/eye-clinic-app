@@ -11,12 +11,34 @@ import { sortQueueForRole } from "../../lib/queueSorting";
 import { Patient } from "../../types/patient";
 import { PaymentMode, QueueItem, VisitType } from "../../types/queue";
 
+type EditablePatientDetails = {
+  name: string;
+  age: string;
+  gender: Patient["gender"];
+};
+
 export default function ReceptionPage() {
-  const { queueItems, selectedQueueItem, addQueueItem, selectQueueItem } =
-    useQueue();
+  const {
+    queueItems,
+    selectedQueueItem,
+    addQueueItem,
+    selectQueueItem,
+    updateQueueItemPayment,
+    updateQueueItemPatientDetails,
+  } = useQueue();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [editingQueueItemId, setEditingQueueItemId] = useState<string | null>(
+    null
+  );
+  const [editablePatientDetails, setEditablePatientDetails] =
+    useState<EditablePatientDetails>({
+      name: "",
+      age: "",
+      gender: "Male",
+    });
+
   const [showRegistrationForm, setShowRegistrationForm] = useState(false);
 
   const [newPatientName, setNewPatientName] = useState("");
@@ -68,6 +90,24 @@ export default function ReceptionPage() {
   const effectivePaymentMode: PaymentMode =
     visitType === "Free Follow-Up" ? "None" : paymentMode;
 
+  const queueItemBeingEdited =
+    queueItems.find((item) => item.id === editingQueueItemId) || null;
+
+  const canEditPayment =
+    !queueItemBeingEdited || queueItemBeingEdited.status === "Waiting";
+
+  const receiptPatient: Patient | null = queueItemBeingEdited
+    ? {
+        id: queueItemBeingEdited.id,
+        uhid: queueItemBeingEdited.uhid,
+        mobile: selectedPatient?.mobile || "",
+        name: editablePatientDetails.name || queueItemBeingEdited.patientName,
+        age: Number(editablePatientDetails.age) || queueItemBeingEdited.age,
+        gender: editablePatientDetails.gender,
+        createdAt: new Date().toISOString(),
+      }
+    : selectedPatient;
+
   function resetPaymentState() {
     setVisitType("New Patient Visit");
     setConsultationFee("1000");
@@ -86,12 +126,22 @@ export default function ReceptionPage() {
     setNewPatientNotes("");
   }
 
+  function resetQueueEditState() {
+    setEditingQueueItemId(null);
+    setEditablePatientDetails({
+      name: "",
+      age: "",
+      gender: "Male",
+    });
+  }
+
   function handleSearchTermChange(value: string) {
     setSearchTerm(value);
     setSelectedPatient(null);
     setShowRegistrationForm(false);
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    resetQueueEditState();
   }
 
   function handleSelectPatient(patient: Patient) {
@@ -103,18 +153,21 @@ export default function ReceptionPage() {
     setPaymentMode("Cash");
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    resetQueueEditState();
   }
 
   function handleClearSelection() {
     setSelectedPatient(null);
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    resetQueueEditState();
   }
 
   function handleOpenRegistration() {
     setShowRegistrationForm(true);
     setSelectedPatient(null);
     resetPaymentState();
+    resetQueueEditState();
 
     if (/^\d+$/.test(searchTerm.trim())) {
       setNewPatientMobile(searchTerm.trim());
@@ -148,6 +201,86 @@ export default function ReceptionPage() {
     setPaymentMode("Cash");
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    resetQueueEditState();
+  }
+
+  function handleSelectQueueItem(item: QueueItem | null) {
+    selectQueueItem(item);
+
+    if (!item) {
+      return;
+    }
+
+    setShowRegistrationForm(false);
+    setSelectedPatient(null);
+    setReceiptGenerated(false);
+    setShowReceiptPreview(false);
+  }
+
+  function handleEditSelectedQueuePatient() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    setEditingQueueItemId(selectedQueueItem.id);
+    setSelectedPatient(null);
+    setShowRegistrationForm(false);
+
+    setEditablePatientDetails({
+      name: selectedQueueItem.patientName,
+      age: String(selectedQueueItem.age),
+      gender: selectedQueueItem.gender,
+    });
+
+    setVisitType(selectedQueueItem.visitType);
+    setConsultationFee(String(selectedQueueItem.amountPaid));
+    setDiscountAmount("0");
+
+    if (selectedQueueItem.paymentMode !== "None") {
+      setPaymentMode(selectedQueueItem.paymentMode);
+    } else {
+      setPaymentMode("Cash");
+    }
+
+    setReceiptGenerated(false);
+    setShowReceiptPreview(false);
+  }
+
+  function handleSaveQueuePatientCorrections() {
+    if (!queueItemBeingEdited) {
+      alert("Please select a queue patient to edit.");
+      return;
+    }
+
+    if (!editablePatientDetails.name || !editablePatientDetails.age) {
+      alert("Please enter patient name and age.");
+      return;
+    }
+
+    updateQueueItemPatientDetails(
+      queueItemBeingEdited.id,
+      editablePatientDetails.name,
+      Number(editablePatientDetails.age),
+      editablePatientDetails.gender
+    );
+
+    if (canEditPayment) {
+      updateQueueItemPayment(
+        queueItemBeingEdited.id,
+        effectivePaymentMode,
+        amountPayable,
+        visitType
+      );
+    }
+
+    setReceiptGenerated(true);
+    setShowReceiptPreview(true);
+    alert(
+      canEditPayment
+        ? "Patient details and payment updated."
+        : "Patient details updated. Payment was not changed because clinical work has already started."
+    );
   }
 
   function handleGenerateReceipt() {
@@ -190,7 +323,7 @@ export default function ReceptionPage() {
   }
 
   function handlePreviewReceipt() {
-    if (!selectedPatient) {
+    if (!receiptPatient) {
       alert("Please select or register a patient first.");
       return;
     }
@@ -199,7 +332,7 @@ export default function ReceptionPage() {
   }
 
   function handlePrintReceipt() {
-    if (!selectedPatient) {
+    if (!receiptPatient) {
       alert("Please select or register a patient first.");
       return;
     }
@@ -219,13 +352,14 @@ export default function ReceptionPage() {
     setShowRegistrationForm(false);
     resetNewPatientForm();
     resetPaymentState();
+    resetQueueEditState();
   }
 
   if (isPrintingReceipt) {
     return (
       <div className="bg-white p-4">
         <ReceiptPreview
-          patient={selectedPatient}
+          patient={receiptPatient}
           visitType={visitType}
           paymentMode={effectivePaymentMode}
           consultationFee={Number(consultationFee) || 0}
@@ -246,7 +380,7 @@ export default function ReceptionPage() {
           <QueuePanel
             items={sortQueueForRole(queueItems, "reception")}
             selectedItemId={selectedQueueItem?.id}
-            onSelectItem={selectQueueItem}
+            onSelectItem={handleSelectQueueItem}
           />
 
           {selectedQueueItem && (
@@ -272,6 +406,13 @@ export default function ReceptionPage() {
                 Paid: ₹{selectedQueueItem.amountPaid} ·{" "}
                 {selectedQueueItem.paymentMode}
               </p>
+
+              <button
+                onClick={handleEditSelectedQueuePatient}
+                className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
+              >
+                Edit Patient / Payment
+              </button>
             </div>
           )}
         </SectionCard>
@@ -279,7 +420,7 @@ export default function ReceptionPage() {
         <div className="grid gap-6 lg:col-span-2">
           <SectionCard
             title="Patient Search / Registration"
-            subtitle="Find existing patient or create temporary registration"
+            subtitle="Find existing patient, register, or correct selected queue patient"
           >
             <div className="grid gap-4">
               <input
@@ -292,7 +433,7 @@ export default function ReceptionPage() {
                 className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
               />
 
-              {searchTerm && !showRegistrationForm && (
+              {searchTerm && !showRegistrationForm && !queueItemBeingEdited && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm font-medium text-slate-700">
                     Search Results
@@ -418,6 +559,76 @@ export default function ReceptionPage() {
                 </div>
               )}
 
+              {queueItemBeingEdited && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-medium text-amber-800">
+                    Editing Queue Patient
+                  </p>
+
+                  <p className="mt-1 text-sm text-amber-700">
+                    Patient details can be corrected anytime. Payment can be
+                    changed only while status is Waiting.
+                  </p>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <label className="grid gap-2 text-sm font-medium text-slate-700">
+                      Patient Name
+                      <input
+                        type="text"
+                        value={editablePatientDetails.name}
+                        onChange={(event) =>
+                          setEditablePatientDetails((current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                      />
+                    </label>
+
+                    <label className="grid gap-2 text-sm font-medium text-slate-700">
+                      Age
+                      <input
+                        type="number"
+                        value={editablePatientDetails.age}
+                        onChange={(event) =>
+                          setEditablePatientDetails((current) => ({
+                            ...current,
+                            age: event.target.value,
+                          }))
+                        }
+                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                      />
+                    </label>
+
+                    <label className="grid gap-2 text-sm font-medium text-slate-700">
+                      Gender
+                      <select
+                        value={editablePatientDetails.gender}
+                        onChange={(event) =>
+                          setEditablePatientDetails((current) => ({
+                            ...current,
+                            gender: event.target.value as Patient["gender"],
+                          }))
+                        }
+                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                      >
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {!canEditPayment && (
+                    <div className="mt-4 rounded-xl border border-amber-300 bg-white p-4 text-sm text-amber-800">
+                      Clinical work has already started. Payment edits are
+                      locked for normal workflow.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {selectedPatient && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -455,7 +666,7 @@ export default function ReceptionPage() {
                 </div>
               )}
 
-              {selectedPatient && (
+              {(selectedPatient || queueItemBeingEdited) && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-sm font-medium text-slate-700">
                     Payment Details
@@ -471,7 +682,8 @@ export default function ReceptionPage() {
                           setReceiptGenerated(false);
                           setShowReceiptPreview(false);
                         }}
-                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                        disabled={!canEditPayment}
+                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                       >
                         <option value="New Patient Visit">
                           New Patient Visit
@@ -495,7 +707,9 @@ export default function ReceptionPage() {
                           setReceiptGenerated(false);
                           setShowReceiptPreview(false);
                         }}
-                        disabled={visitType === "Free Follow-Up"}
+                        disabled={
+                          visitType === "Free Follow-Up" || !canEditPayment
+                        }
                         className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                       />
                     </label>
@@ -510,7 +724,9 @@ export default function ReceptionPage() {
                           setReceiptGenerated(false);
                           setShowReceiptPreview(false);
                         }}
-                        disabled={visitType === "Free Follow-Up"}
+                        disabled={
+                          visitType === "Free Follow-Up" || !canEditPayment
+                        }
                         className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                       />
                     </label>
@@ -524,7 +740,7 @@ export default function ReceptionPage() {
                           setReceiptGenerated(false);
                           setShowReceiptPreview(false);
                         }}
-                        disabled={visitType === "Free Follow-Up"}
+                        disabled={visitType === "Free Follow-Up" || !canEditPayment}
                         className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                       >
                         <option value="Cash">Cash</option>
@@ -545,17 +761,28 @@ export default function ReceptionPage() {
                     </div>
 
                     <p className="mt-2 text-xs text-slate-500">
-                      Consultation fee can be edited before receipt generation.
+                      {canEditPayment
+                        ? "Consultation fee can be edited before clinical work starts."
+                        : "Payment is locked because clinical work has already started."}
                     </p>
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <button
-                      onClick={handleGenerateReceipt}
-                      className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
-                    >
-                      Generate Receipt & Send to Queue
-                    </button>
+                    {queueItemBeingEdited ? (
+                      <button
+                        onClick={handleSaveQueuePatientCorrections}
+                        className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                      >
+                        Save Corrections
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleGenerateReceipt}
+                        className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                      >
+                        Generate Receipt & Send to Queue
+                      </button>
+                    )}
 
                     <button
                       onClick={handlePreviewReceipt}
@@ -575,11 +802,17 @@ export default function ReceptionPage() {
                   {receiptGenerated && (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                       <p className="font-medium text-emerald-800">
-                        Receipt generated successfully.
+                        {queueItemBeingEdited
+                          ? "Corrections saved successfully."
+                          : "Receipt generated successfully."}
                       </p>
 
                       <p className="mt-1 text-sm text-emerald-700">
-                        Patient has been added to the queue.
+                        {queueItemBeingEdited
+                          ? canEditPayment
+                            ? "Patient details and payment were updated."
+                            : "Patient details were updated. Payment remained locked."
+                          : "Patient has been added to the queue."}
                       </p>
 
                       <button
@@ -600,7 +833,7 @@ export default function ReceptionPage() {
                   </p>
 
                   <ReceiptPreview
-                    patient={selectedPatient}
+                    patient={receiptPatient}
                     visitType={visitType}
                     paymentMode={effectivePaymentMode}
                     consultationFee={Number(consultationFee) || 0}

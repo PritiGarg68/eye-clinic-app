@@ -175,7 +175,7 @@ export default function PrescriptionPreview({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold text-slate-900">Medicines</p>
             <p className="text-xs text-slate-500">
-              Designed to accommodate 3–4 usual medicines and 7–8 when needed
+              Expands for additional medicines as needed
             </p>
           </div>
 
@@ -222,78 +222,13 @@ export default function PrescriptionPreview({
                       </td>
                     </tr>
                   ))}
-
-                  {consultation.medicines.length < 4 &&
-                    Array.from({
-                      length: 4 - consultation.medicines.length,
-                    }).map((_, index) => (
-                      <tr key={`empty-medicine-row-${index}`}>
-                        <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                          —
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                          —
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                          —
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                          —
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                          —
-                        </td>
-                      </tr>
-                    ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-50">
-                    <th className="w-[28%] border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700">
-                      Medicine
-                    </th>
-                    <th className="w-[14%] border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700">
-                      Eye / Route
-                    </th>
-                    <th className="w-[17%] border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700">
-                      Frequency
-                    </th>
-                    <th className="w-[13%] border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700">
-                      Duration
-                    </th>
-                    <th className="w-[28%] border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700">
-                      Instructions
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <tr key={`blank-medicine-row-${index}`}>
-                      <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                        —
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                        —
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                        —
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                        —
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-slate-300">
-                        —
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <p className="mt-2 text-sm text-slate-500">
+              No medicines added.
+            </p>
           )}
         </div>
 

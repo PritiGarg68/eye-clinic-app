@@ -24,3 +24,85 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .prescription-print-area {
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .prescription-screen-only {
+    display: none !important;
+  }
+
+  .prescription-print-area * {
+    box-shadow: none !important;
+  }
+
+  .prescription-print-area .grid {
+    display: block !important;
+  }
+
+  .prescription-print-area .flex {
+    display: block !important;
+  }
+
+  .prescription-print-area .print-flow {
+    display: block !important;
+    margin-top: 8px !important;
+  }
+
+  .prescription-print-area .print-flow > * {
+    display: block !important;
+    margin-bottom: 8px !important;
+  }
+
+  .prescription-print-area .print-compact-section {
+    display: block !important;
+    padding: 7px !important;
+    margin-bottom: 8px !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .prescription-print-area p {
+    line-height: 1.2 !important;
+    margin-top: 2px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .prescription-print-area table {
+    width: 100% !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .prescription-print-area thead {
+    display: table-header-group;
+  }
+
+  .prescription-print-area tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .prescription-print-area th,
+  .prescription-print-area td {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+}

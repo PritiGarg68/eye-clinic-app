@@ -3,6 +3,7 @@ import SpectacleTable from "./SpectacleTable";
 
 type PrescriptionPreviewProps = {
   patient: QueueItem | null;
+  showSpectacleAdvice?: boolean;
 };
 
 const visionRows = [
@@ -13,6 +14,7 @@ const visionRows = [
 
 export default function PrescriptionPreview({
   patient,
+  showSpectacleAdvice = true,
 }: PrescriptionPreviewProps) {
   if (!patient) {
     return (
@@ -28,7 +30,7 @@ export default function PrescriptionPreview({
   const today = new Date().toLocaleDateString();
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <div className="prescription-print-area rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="border-b border-slate-300 pb-3">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -78,9 +80,9 @@ export default function PrescriptionPreview({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4">
+      <div className="print-flow mt-4 grid gap-4">
         <div className="grid gap-4 md:grid-cols-5">
-          <div className="rounded-xl border border-slate-200 p-3 md:col-span-2">
+          <div className="print-compact-section rounded-xl border border-slate-200 p-3 md:col-span-2">
             <p className="text-sm font-semibold text-slate-900">
               Chief Complaint
             </p>
@@ -89,7 +91,7 @@ export default function PrescriptionPreview({
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-3 md:col-span-3">
+          <div className="print-compact-section rounded-xl border border-slate-200 p-3 md:col-span-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold text-slate-900">
                 Vision / VA
@@ -155,14 +157,14 @@ export default function PrescriptionPreview({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-3">
+        <div className="print-compact-section rounded-xl border border-slate-200 p-3">
           <p className="text-sm font-semibold text-slate-900">Findings</p>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
             {consultation?.findings || "Not entered"}
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-3">
+        <div className="print-compact-section rounded-xl border border-slate-200 p-3">
           <p className="text-sm font-semibold text-slate-900">
             Diagnosis / Impression
           </p>
@@ -171,7 +173,7 @@ export default function PrescriptionPreview({
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-3">
+        <div className="print-compact-section rounded-xl border border-slate-200 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold text-slate-900">Medicines</p>
             <p className="text-xs text-slate-500">
@@ -233,14 +235,14 @@ export default function PrescriptionPreview({
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 p-3 md:col-span-2">
+          <div className="print-compact-section rounded-xl border border-slate-200 p-3 md:col-span-2">
             <p className="text-sm font-semibold text-slate-900">Advice</p>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
               {consultation?.advice || "Not entered"}
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-3">
+          <div className="print-compact-section rounded-xl border border-slate-200 p-3">
             <p className="text-sm font-semibold text-slate-900">Follow-Up</p>
             <p className="mt-2 text-sm font-semibold text-slate-800">
               {consultation?.followUpDate || "Not entered"}
@@ -248,8 +250,8 @@ export default function PrescriptionPreview({
           </div>
         </div>
 
-        {finalSpectacleAdvice && (
-          <div className="rounded-xl border border-dashed border-slate-300 p-3">
+        {showSpectacleAdvice && finalSpectacleAdvice && (
+          <div className="prescription-screen-only rounded-xl border border-dashed border-slate-300 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold text-slate-900">
                 Final Spectacle Advice

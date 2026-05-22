@@ -91,10 +91,11 @@ export default function DoctorPage() {
   } = useQueue();
 
   const [statusMessage, setStatusMessage] = useState("");
-  const [consultationSaved, setConsultationSaved] = useState(false);
-  const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
-  const [consultation, setConsultation] =
-    useState<DoctorConsultation>(emptyConsultation);
+const [consultationSaved, setConsultationSaved] = useState(false);
+const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
+const [isPrintingPrescription, setIsPrintingPrescription] = useState(false);
+const [consultation, setConsultation] =
+  useState<DoctorConsultation>(emptyConsultation);
 
   const optometristWorkup = selectedQueueItem?.optometristWorkup;
 
@@ -103,7 +104,12 @@ export default function DoctorPage() {
 
   const finalSpectacleAdvice =
     consultation.finalSpectacleAdvice || emptySpectacleAdvice;
-
+    const patientForPrescription = selectedQueueItem
+    ? {
+        ...selectedQueueItem,
+        doctorConsultation: consultation,
+      }
+    : null;
   useEffect(() => {
     setConsultation(
       normalizeConsultation(
@@ -116,7 +122,17 @@ export default function DoctorPage() {
     setConsultationSaved(false);
     setShowPrescriptionPreview(false);
   }, [selectedQueueItem?.id]);
-
+  useEffect(() => {
+    function handleAfterPrint() {
+      setIsPrintingPrescription(false);
+    }
+  
+    window.addEventListener("afterprint", handleAfterPrint);
+  
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
     selectQueueItem(item);
     setStatusMessage("");
@@ -339,7 +355,32 @@ export default function DoctorPage() {
     setShowPrescriptionPreview(true);
     setStatusMessage("Prescription preview generated.");
   }
-
+  function handlePrintPrescription() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+  
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
+    setConsultationSaved(true);
+    setShowPrescriptionPreview(true);
+    setIsPrintingPrescription(true);
+    setStatusMessage("Prescription ready for printing.");
+  
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  }
+  if (isPrintingPrescription) {
+    return (
+      <div className="bg-white p-4">
+        <PrescriptionPreview
+          patient={patientForPrescription}
+          showSpectacleAdvice={false}
+        />
+      </div>
+    );
+  }
   return (
     <AppShell
       title="Doctor / Admin Workspace"
@@ -564,7 +605,12 @@ export default function DoctorPage() {
               >
                 Preview Prescription
               </button>
-
+              <button
+  onClick={handlePrintPrescription}
+  className="rounded-xl bg-blue-700 px-4 py-3 font-medium text-white hover:bg-blue-800"
+>
+  Print Prescription
+</button>
               <button
                 onClick={handleCompleteConsultation}
                 className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
@@ -579,12 +625,16 @@ export default function DoctorPage() {
                   Prescription Preview
                 </p>
 
-                <PrescriptionPreview patient={selectedQueueItem} />
+                <PrescriptionPreview
+  patient={patientForPrescription}
+  showSpectacleAdvice
+/>
               </div>
             )}
           </div>
         </SectionCard>
       </div>
+      
     </AppShell>
   );
 }

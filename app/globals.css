@@ -44,11 +44,19 @@ body {
     padding: 0 !important;
     margin: 0 !important;
   }
-
+  .receipt-print-area {
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   .prescription-screen-only {
     display: none !important;
   }
-
+  .receipt-screen-only {
+    display: none !important;
+  }
   .prescription-print-area * {
     box-shadow: none !important;
   }

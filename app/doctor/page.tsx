@@ -32,6 +32,7 @@ const emptySpectacleAdvice: SpectacleAdvice = {
 };
 
 const emptyConsultation: DoctorConsultation = {
+  findings: "",
   diagnosis: "",
   medicines: [],
   advice: "",
@@ -70,6 +71,8 @@ function normalizeConsultation(
   return {
     ...emptyConsultation,
     ...savedConsultation,
+    findings: savedConsultation?.findings || "",
+    diagnosis: savedConsultation?.diagnosis || "",
     medicines: savedConsultation?.medicines || [],
     finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
   };
@@ -426,14 +429,28 @@ export default function DoctorPage() {
 
             <div className="rounded-xl border border-slate-200 p-4">
               <label className="grid gap-2 text-sm font-medium text-slate-700">
+                Findings
+                <textarea
+                  value={consultation.findings}
+                  onChange={(event) =>
+                    updateConsultationField("findings", event.target.value)
+                  }
+                  placeholder="Enter clinical findings, examination notes, slit lamp/fundus observations, etc."
+                  className="min-h-36 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-4">
+              <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Diagnosis / Impression
                 <textarea
                   value={consultation.diagnosis}
                   onChange={(event) =>
                     updateConsultationField("diagnosis", event.target.value)
                   }
-                  placeholder="Enter diagnosis or clinical impression"
-                  className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                  placeholder="Optional short diagnosis or impression"
+                  className="min-h-20 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
               </label>
             </div>

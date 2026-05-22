@@ -64,6 +64,7 @@ export type MedicineRow = {
 };
 
 export type DoctorConsultation = {
+  findings: string;
   diagnosis: string;
   medicines: MedicineRow[];
   advice: string;

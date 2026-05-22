@@ -79,24 +79,13 @@ export default function PrescriptionPreview({
       </div>
 
       <div className="mt-6 grid gap-5">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-slate-900">
-              Chief Complaint
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-              {optometristWorkup?.chiefComplaint || "Not entered"}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 p-4">
-            <p className="text-sm font-semibold text-slate-900">
-              Diagnosis / Impression
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-              {consultation?.diagnosis || "Not entered"}
-            </p>
-          </div>
+        <div className="rounded-xl border border-slate-200 p-4">
+          <p className="text-sm font-semibold text-slate-900">
+            Chief Complaint
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+            {optometristWorkup?.chiefComplaint || "Not entered"}
+          </p>
         </div>
 
         <div className="rounded-xl border border-slate-200 p-4">
@@ -162,6 +151,22 @@ export default function PrescriptionPreview({
               Vision not recorded.
             </p>
           )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 p-4">
+          <p className="text-sm font-semibold text-slate-900">Findings</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+            {consultation?.findings || "Not entered"}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 p-4">
+          <p className="text-sm font-semibold text-slate-900">
+            Diagnosis / Impression
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+            {consultation?.diagnosis || "Not entered"}
+          </p>
         </div>
 
         <div className="rounded-xl border border-slate-200 p-4">

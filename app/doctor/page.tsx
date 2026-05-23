@@ -10,6 +10,7 @@ import MedicineEditor from "../components/MedicineEditor";
 import OptometristFindingsView from "../components/OptometristFindingsView";
 import PatientHistoryPanel from "../components/PatientHistoryPanel";
 import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
+import DoctorActionPanel from "../components/DoctorActionPanel";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
@@ -445,7 +446,7 @@ export default function DoctorPage() {
       title="Doctor / Admin Workspace"
       subtitle="Consultation, prescriptions, patient history, reports, and master data"
     >
-      <div className="grid gap-6 lg:grid-cols-4">
+      <div className="grid gap-6 lg:grid-cols-5">
         <div className="grid gap-6 lg:col-span-1">
           <SectionCard title="Live Queue" subtitle="Patients waiting for doctor">
             <QueuePanel
@@ -641,49 +642,7 @@ export default function DoctorPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                onClick={handleStartConsultation}
-                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
-              >
-                Start Consultation
-              </button>
-
-              <button
-                onClick={handleSaveConsultationDraft}
-                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
-              >
-                Save Draft
-              </button>
-
-              <button
-                onClick={handlePreviewPrescription}
-                className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
-              >
-                Preview Prescription
-              </button>
-
-              <button
-                onClick={handlePrintPrescription}
-                className="rounded-xl bg-blue-700 px-4 py-3 font-medium text-white hover:bg-blue-800"
-              >
-                Print Prescription
-              </button>
-
-              <button
-                onClick={handlePrintSpectacleAdvice}
-                className="rounded-xl bg-indigo-700 px-4 py-3 font-medium text-white hover:bg-indigo-800"
-              >
-                Print Spectacle Advice
-              </button>
-
-              <button
-                onClick={handleCompleteConsultation}
-                className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
-              >
-                Complete Consultation
-              </button>
-            </div>
+            
 
             {showPrescriptionPreview && (
               <div className="rounded-xl border border-slate-200 p-4">
@@ -699,6 +658,16 @@ export default function DoctorPage() {
             )}
           </div>
         </SectionCard>
+        <div className="lg:col-span-1">
+  <DoctorActionPanel
+    onStartConsultation={handleStartConsultation}
+    onSaveDraft={handleSaveConsultationDraft}
+    onPreviewPrescription={handlePreviewPrescription}
+    onPrintPrescription={handlePrintPrescription}
+    onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
+    onCompleteConsultation={handleCompleteConsultation}
+  />
+</div>
       </div>
     </AppShell>
   );

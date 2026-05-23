@@ -51,6 +51,13 @@ body {
     padding: 0 !important;
     margin: 0 !important;
   }
+  .spectacle-print-area {
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   .prescription-screen-only {
     display: none !important;
   }
@@ -63,6 +70,22 @@ body {
 
   .prescription-print-area .grid {
     display: block !important;
+  }
+  .spectacle-print-area .grid {
+    display: block !important;
+  }
+  
+  .spectacle-print-area .flex {
+    display: block !important;
+  }
+  
+  .spectacle-print-area table {
+    width: 100% !important;
+  }
+  
+  .spectacle-print-area tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .prescription-print-area .flex {

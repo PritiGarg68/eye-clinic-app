@@ -1,6 +1,5 @@
 import { OptometristWorkup } from "../../types/queue";
 import VisionTable from "./VisionTable";
-import SpectacleTable from "./SpectacleTable";
 
 type OptometristFindingsViewProps = {
   workup?: OptometristWorkup;
@@ -101,26 +100,18 @@ export default function OptometristFindingsView({
             </div>
           </div>
 
-          <div>
-            <p className="mb-3 text-sm font-medium text-slate-700">
-              Optometrist Spectacle Draft
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+            <p className="text-xs font-medium text-indigo-700">
+              Spectacle Draft
             </p>
-
-            <SpectacleTable
-              value={{
-                od: workup.spectacleDraft.od,
-                os: workup.spectacleDraft.os,
-                add: workup.spectacleDraft.add,
-              }}
-              readOnly
-            />
-
-            <div className="mt-3 rounded-xl bg-slate-50 p-3">
-              <p className="text-xs font-medium text-slate-500">Remarks</p>
-              <p className="mt-1 text-sm text-slate-800">
-                {workup.spectacleDraft.remarks || "Not entered"}
-              </p>
-            </div>
+            <p className="mt-1 text-sm text-indigo-900">
+              Optometrist spectacle draft has been prefilled into the editable
+              doctor spectacle advice section below.
+            </p>
+            <p className="mt-1 text-xs text-indigo-700">
+              Doctor may edit/finalise those values before printing spectacle
+              advice.
+            </p>
           </div>
 
           {workup.updatedAt && (

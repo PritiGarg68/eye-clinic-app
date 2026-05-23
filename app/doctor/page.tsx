@@ -1,5 +1,5 @@
 "use client";
-import PatientHistoryPanel from "../components/PatientHistoryPanel";
+
 import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
@@ -8,6 +8,8 @@ import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
 import MedicineEditor from "../components/MedicineEditor";
 import OptometristFindingsView from "../components/OptometristFindingsView";
+import PatientHistoryPanel from "../components/PatientHistoryPanel";
+import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
@@ -61,22 +63,41 @@ function normalizeSpectacleAdvice(
   };
 }
 
-function normalizeConsultation(
-  savedConsultation?: Partial<DoctorConsultation>,
-  optometristDraft?: SpectacleAdvice
-): DoctorConsultation {
-  const finalSpectacleAdvice =
-    savedConsultation?.finalSpectacleAdvice || optometristDraft;
-
-  return {
-    ...emptyConsultation,
-    ...savedConsultation,
-    findings: savedConsultation?.findings || "",
-    diagnosis: savedConsultation?.diagnosis || "",
-    medicines: savedConsultation?.medicines || [],
-    finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
-  };
-}
+function hasSpectacleAdviceValues(advice?: Partial<SpectacleAdvice>) {
+    if (!advice) {
+      return false;
+    }
+  
+    const rows = [advice.od, advice.os, advice.add];
+  
+    return (
+      rows.some((row) =>
+        Object.values(row || {}).some((value) => String(value || "").trim())
+      ) || Boolean(advice.remarks?.trim())
+    );
+  }
+  
+  function normalizeConsultation(
+    savedConsultation?: Partial<DoctorConsultation>,
+    optometristDraft?: SpectacleAdvice
+  ): DoctorConsultation {
+    const savedFinalSpectacleAdvice = savedConsultation?.finalSpectacleAdvice;
+  
+    const finalSpectacleAdvice = hasSpectacleAdviceValues(
+      savedFinalSpectacleAdvice
+    )
+      ? savedFinalSpectacleAdvice
+      : optometristDraft;
+  
+    return {
+      ...emptyConsultation,
+      ...savedConsultation,
+      findings: savedConsultation?.findings || "",
+      diagnosis: savedConsultation?.diagnosis || "",
+      medicines: savedConsultation?.medicines || [],
+      finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
+    };
+  }
 
 type SpectacleRowKey = "od" | "os" | "add";
 type SpectacleFieldKey = keyof SpectacleDraftRow;
@@ -91,11 +112,13 @@ export default function DoctorPage() {
   } = useQueue();
 
   const [statusMessage, setStatusMessage] = useState("");
-const [consultationSaved, setConsultationSaved] = useState(false);
-const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
-const [isPrintingPrescription, setIsPrintingPrescription] = useState(false);
-const [consultation, setConsultation] =
-  useState<DoctorConsultation>(emptyConsultation);
+  const [consultationSaved, setConsultationSaved] = useState(false);
+  const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
+  const [isPrintingPrescription, setIsPrintingPrescription] = useState(false);
+  const [isPrintingSpectacleAdvice, setIsPrintingSpectacleAdvice] =
+    useState(false);
+  const [consultation, setConsultation] =
+    useState<DoctorConsultation>(emptyConsultation);
 
   const optometristWorkup = selectedQueueItem?.optometristWorkup;
 
@@ -104,12 +127,14 @@ const [consultation, setConsultation] =
 
   const finalSpectacleAdvice =
     consultation.finalSpectacleAdvice || emptySpectacleAdvice;
-    const patientForPrescription = selectedQueueItem
+
+  const patientForPrescription = selectedQueueItem
     ? {
         ...selectedQueueItem,
         doctorConsultation: consultation,
       }
     : null;
+
   useEffect(() => {
     setConsultation(
       normalizeConsultation(
@@ -121,23 +146,30 @@ const [consultation, setConsultation] =
     setStatusMessage("");
     setConsultationSaved(false);
     setShowPrescriptionPreview(false);
+    setIsPrintingPrescription(false);
+    setIsPrintingSpectacleAdvice(false);
   }, [selectedQueueItem?.id]);
+
   useEffect(() => {
     function handleAfterPrint() {
       setIsPrintingPrescription(false);
+      setIsPrintingSpectacleAdvice(false);
     }
-  
+
     window.addEventListener("afterprint", handleAfterPrint);
-  
+
     return () => {
       window.removeEventListener("afterprint", handleAfterPrint);
     };
   }, []);
+
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
     selectQueueItem(item);
     setStatusMessage("");
     setConsultationSaved(false);
     setShowPrescriptionPreview(false);
+    setIsPrintingPrescription(false);
+    setIsPrintingSpectacleAdvice(false);
   }
 
   function updateConsultationField<K extends keyof DoctorConsultation>(
@@ -355,22 +387,40 @@ const [consultation, setConsultation] =
     setShowPrescriptionPreview(true);
     setStatusMessage("Prescription preview generated.");
   }
+
   function handlePrintPrescription() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-  
+
     saveDoctorConsultation(selectedQueueItem.id, consultation);
     setConsultationSaved(true);
     setShowPrescriptionPreview(true);
     setIsPrintingPrescription(true);
     setStatusMessage("Prescription ready for printing.");
-  
+
     setTimeout(() => {
       window.print();
     }, 150);
   }
+
+  function handlePrintSpectacleAdvice() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
+    setConsultationSaved(true);
+    setIsPrintingSpectacleAdvice(true);
+    setStatusMessage("Spectacle advice ready for printing.");
+
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  }
+
   if (isPrintingPrescription) {
     return (
       <div className="bg-white p-4">
@@ -381,6 +431,15 @@ const [consultation, setConsultation] =
       </div>
     );
   }
+
+  if (isPrintingSpectacleAdvice) {
+    return (
+      <div className="bg-white p-4">
+        <SpectacleAdvicePrint patient={patientForPrescription} />
+      </div>
+    );
+  }
+
   return (
     <AppShell
       title="Doctor / Admin Workspace"
@@ -428,8 +487,8 @@ const [consultation, setConsultation] =
           </SectionCard>
 
           <SectionCard title="History Timeline" subtitle="Previous visits">
-  <PatientHistoryPanel patient={selectedQueueItem} />
-</SectionCard>
+            <PatientHistoryPanel patient={selectedQueueItem} />
+          </SectionCard>
         </div>
 
         <SectionCard
@@ -603,12 +662,21 @@ const [consultation, setConsultation] =
               >
                 Preview Prescription
               </button>
+
               <button
-  onClick={handlePrintPrescription}
-  className="rounded-xl bg-blue-700 px-4 py-3 font-medium text-white hover:bg-blue-800"
->
-  Print Prescription
-</button>
+                onClick={handlePrintPrescription}
+                className="rounded-xl bg-blue-700 px-4 py-3 font-medium text-white hover:bg-blue-800"
+              >
+                Print Prescription
+              </button>
+
+              <button
+                onClick={handlePrintSpectacleAdvice}
+                className="rounded-xl bg-indigo-700 px-4 py-3 font-medium text-white hover:bg-indigo-800"
+              >
+                Print Spectacle Advice
+              </button>
+
               <button
                 onClick={handleCompleteConsultation}
                 className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
@@ -624,15 +692,14 @@ const [consultation, setConsultation] =
                 </p>
 
                 <PrescriptionPreview
-  patient={patientForPrescription}
-  showSpectacleAdvice
-/>
+                  patient={patientForPrescription}
+                  showSpectacleAdvice
+                />
               </div>
             )}
           </div>
         </SectionCard>
       </div>
-      
     </AppShell>
   );
 }

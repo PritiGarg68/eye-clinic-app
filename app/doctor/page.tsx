@@ -1,5 +1,5 @@
 "use client";
-
+import PatientHistoryPanel from "../components/PatientHistoryPanel";
 import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
@@ -428,10 +428,8 @@ const [consultation, setConsultation] =
           </SectionCard>
 
           <SectionCard title="History Timeline" subtitle="Previous visits">
-            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-              Prior visits will appear here
-            </div>
-          </SectionCard>
+  <PatientHistoryPanel patient={selectedQueueItem} />
+</SectionCard>
         </div>
 
         <SectionCard

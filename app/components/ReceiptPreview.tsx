@@ -1,6 +1,6 @@
 import { PaymentMode, VisitType } from "../../types/queue";
 import { Patient } from "../../types/patient";
-
+import { clinicSettings } from "../../lib/clinicSettings";
 type ReceiptPreviewProps = {
   patient: Patient | null;
   visitType: VisitType;
@@ -34,13 +34,18 @@ export default function ReceiptPreview({
       <div className="border-b border-slate-300 pb-3">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xl font-bold tracking-tight">Eye Clinic Name</p>
-            <p className="mt-1 text-sm text-slate-600">
-              Address line, city · Phone number
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Receipt for consultation payment
-            </p>
+          <p className="text-xl font-bold tracking-tight">
+  {clinicSettings.clinicName}
+</p>
+<p className="mt-1 text-sm text-slate-600">
+  {clinicSettings.address}
+</p>
+<p className="mt-1 text-sm text-slate-600">
+  {clinicSettings.phone}
+</p>
+<p className="mt-1 text-xs text-slate-500">
+  Receipt for consultation payment
+</p>
           </div>
 
           <div className="rounded-lg border border-slate-200 px-4 py-2 text-right">

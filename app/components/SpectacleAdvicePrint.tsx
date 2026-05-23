@@ -1,6 +1,6 @@
 import { QueueItem } from "../../types/queue";
 import SpectacleTable from "./SpectacleTable";
-
+import { clinicSettings } from "../../lib/clinicSettings";
 type SpectacleAdvicePrintProps = {
   patient: QueueItem | null;
 };
@@ -24,15 +24,19 @@ export default function SpectacleAdvicePrint({
       <div className="border-b border-slate-300 pb-3">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-2xl font-bold tracking-tight">
-              Eye Clinic Name
-            </p>
-            <p className="mt-1 text-sm text-slate-600">
-              Address line, city · Phone number · Email
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Doctor name, qualification, registration number
-            </p>
+          <p className="text-2xl font-bold tracking-tight">
+  {clinicSettings.clinicName}
+</p>
+<p className="mt-1 text-sm text-slate-600">
+  {clinicSettings.address}
+</p>
+<p className="mt-1 text-sm text-slate-600">
+  {clinicSettings.phone} · {clinicSettings.email}
+</p>
+<p className="mt-1 text-xs text-slate-500">
+  {clinicSettings.doctorName}, {clinicSettings.doctorQualification} · Regn:{" "}
+  {clinicSettings.medicalRegistrationNumber}
+</p>
           </div>
 
           <div className="rounded-lg border border-slate-200 px-4 py-2 text-right">
@@ -99,11 +103,14 @@ export default function SpectacleAdvicePrint({
         <div className="min-w-48 text-right">
           <div className="mb-2 h-12 border-b border-slate-300" />
           <p className="text-sm font-semibold text-slate-900">
-            Doctor Signature
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Name / registration details
-          </p>
+  Doctor Signature
+</p>
+<p className="mt-1 text-xs text-slate-500">
+  {clinicSettings.doctorName}
+</p>
+<p className="text-xs text-slate-500">
+  Regn: {clinicSettings.medicalRegistrationNumber}
+</p>
         </div>
       </div>
     </div>

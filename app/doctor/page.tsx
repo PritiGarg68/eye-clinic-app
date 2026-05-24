@@ -7,15 +7,17 @@ import QueuePanel from "../components/QueuePanel";
 import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
 import MedicineEditor from "../components/MedicineEditor";
-import OptometristFindingsView from "../components/OptometristFindingsView";
 import PatientHistoryPanel from "../components/PatientHistoryPanel";
 import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import DoctorActionPanel from "../components/DoctorActionPanel";
+import DoctorWorkupOverridePanel from "../components/DoctorWorkupOverridePanel";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
+import { Patient } from "../../types/patient";
 import {
   DoctorConsultation,
   MedicineRow,
+  OptometristWorkup,
   SpectacleAdvice,
   SpectacleDraftRow,
 } from "../../types/queue";
@@ -65,40 +67,40 @@ function normalizeSpectacleAdvice(
 }
 
 function hasSpectacleAdviceValues(advice?: Partial<SpectacleAdvice>) {
-    if (!advice) {
-      return false;
-    }
-  
-    const rows = [advice.od, advice.os, advice.add];
-  
-    return (
-      rows.some((row) =>
-        Object.values(row || {}).some((value) => String(value || "").trim())
-      ) || Boolean(advice.remarks?.trim())
-    );
+  if (!advice) {
+    return false;
   }
-  
-  function normalizeConsultation(
-    savedConsultation?: Partial<DoctorConsultation>,
-    optometristDraft?: SpectacleAdvice
-  ): DoctorConsultation {
-    const savedFinalSpectacleAdvice = savedConsultation?.finalSpectacleAdvice;
-  
-    const finalSpectacleAdvice = hasSpectacleAdviceValues(
-      savedFinalSpectacleAdvice
-    )
-      ? savedFinalSpectacleAdvice
-      : optometristDraft;
-  
-    return {
-      ...emptyConsultation,
-      ...savedConsultation,
-      findings: savedConsultation?.findings || "",
-      diagnosis: savedConsultation?.diagnosis || "",
-      medicines: savedConsultation?.medicines || [],
-      finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
-    };
-  }
+
+  const rows = [advice.od, advice.os, advice.add];
+
+  return (
+    rows.some((row) =>
+      Object.values(row || {}).some((value) => String(value || "").trim())
+    ) || Boolean(advice.remarks?.trim())
+  );
+}
+
+function normalizeConsultation(
+  savedConsultation?: Partial<DoctorConsultation>,
+  optometristDraft?: SpectacleAdvice
+): DoctorConsultation {
+  const savedFinalSpectacleAdvice = savedConsultation?.finalSpectacleAdvice;
+
+  const finalSpectacleAdvice = hasSpectacleAdviceValues(
+    savedFinalSpectacleAdvice
+  )
+    ? savedFinalSpectacleAdvice
+    : optometristDraft;
+
+  return {
+    ...emptyConsultation,
+    ...savedConsultation,
+    findings: savedConsultation?.findings || "",
+    diagnosis: savedConsultation?.diagnosis || "",
+    medicines: savedConsultation?.medicines || [],
+    finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
+  };
+}
 
 type SpectacleRowKey = "od" | "os" | "add";
 type SpectacleFieldKey = keyof SpectacleDraftRow;
@@ -109,6 +111,8 @@ export default function DoctorPage() {
     selectedQueueItem,
     selectQueueItem,
     updateQueueItemStatus,
+    updateQueueItemPatientDetails,
+    saveOptometristWorkup,
     saveDoctorConsultation,
   } = useQueue();
 
@@ -120,8 +124,6 @@ export default function DoctorPage() {
     useState(false);
   const [consultation, setConsultation] =
     useState<DoctorConsultation>(emptyConsultation);
-
-  const optometristWorkup = selectedQueueItem?.optometristWorkup;
 
   const canSendBackToOptometrist =
     selectedQueueItem?.status === "Under Consultation";
@@ -322,6 +324,36 @@ export default function DoctorPage() {
     setShowPrescriptionPreview(false);
   }
 
+  function handleSavePatientDetailsFromDoctor(
+    patientName: string,
+    age: number,
+    gender: Patient["gender"]
+  ) {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    updateQueueItemPatientDetails(
+      selectedQueueItem.id,
+      patientName,
+      age,
+      gender
+    );
+
+    setStatusMessage("Patient details corrected by doctor/admin.");
+  }
+
+  function handleSaveWorkupFromDoctor(workup: OptometristWorkup) {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    saveOptometristWorkup(selectedQueueItem.id, workup);
+    setStatusMessage("Workup details updated by doctor/admin.");
+  }
+
   function handleSendBackToOptometrist() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
@@ -494,7 +526,7 @@ export default function DoctorPage() {
 
         <SectionCard
           title="Current Consultation"
-          subtitle="Complaints, findings, diagnosis, medicines, advice, and follow-up"
+          subtitle="Patient/workup details, findings, diagnosis, medicines, advice, and follow-up"
           className="lg:col-span-3"
         >
           <div className="grid gap-4">
@@ -504,26 +536,12 @@ export default function DoctorPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-sm font-medium text-slate-700">
-                Chief Complaints
-              </p>
-
-              {optometristWorkup?.chiefComplaint ? (
-                <p className="mt-2 text-sm text-slate-700">
-                  {optometristWorkup.chiefComplaint}
-                </p>
-              ) : (
-                <p className="mt-2 text-sm text-slate-500">
-                  No chief complaint entered yet.
-                </p>
-              )}
-            </div>
-
-            <OptometristFindingsView
-              workup={optometristWorkup}
+            <DoctorWorkupOverridePanel
+              patient={selectedQueueItem}
               canSendBackToOptometrist={canSendBackToOptometrist}
               onSendBackToOptometrist={handleSendBackToOptometrist}
+              onSavePatientDetails={handleSavePatientDetailsFromDoctor}
+              onSaveWorkup={handleSaveWorkupFromDoctor}
             />
 
             <div className="rounded-xl border border-slate-200 p-4">
@@ -642,8 +660,6 @@ export default function DoctorPage() {
               </div>
             )}
 
-            
-
             {showPrescriptionPreview && (
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="mb-4 text-sm font-medium text-slate-700">
@@ -658,16 +674,17 @@ export default function DoctorPage() {
             )}
           </div>
         </SectionCard>
+
         <div className="lg:col-span-1">
-  <DoctorActionPanel
-    onStartConsultation={handleStartConsultation}
-    onSaveDraft={handleSaveConsultationDraft}
-    onPreviewPrescription={handlePreviewPrescription}
-    onPrintPrescription={handlePrintPrescription}
-    onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
-    onCompleteConsultation={handleCompleteConsultation}
-  />
-</div>
+          <DoctorActionPanel
+            onStartConsultation={handleStartConsultation}
+            onSaveDraft={handleSaveConsultationDraft}
+            onPreviewPrescription={handlePreviewPrescription}
+            onPrintPrescription={handlePrintPrescription}
+            onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
+            onCompleteConsultation={handleCompleteConsultation}
+          />
+        </div>
       </div>
     </AppShell>
   );

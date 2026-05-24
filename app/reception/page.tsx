@@ -5,11 +5,20 @@ import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import ReceiptPreview from "../components/ReceiptPreview";
+import AdditionalPaymentPendingCard from "../components/AdditionalPaymentPendingCard";
+import AdditionalServiceReceiptPreview from "../components/AdditionalServiceReceiptPreview";
 import { useQueue } from "../components/QueueProvider";
 import { samplePatients } from "../../lib/samplePatients";
 import { sortQueueForRole } from "../../lib/queueSorting";
+import { clinicSettings } from "../../lib/clinicSettings";
+import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { Patient } from "../../types/patient";
-import { PaymentMode, QueueItem, VisitType } from "../../types/queue";
+import {
+  AdditionalServiceRequest,
+  PaymentMode,
+  QueueItem,
+  VisitType,
+} from "../../types/queue";
 
 type EditablePatientDetails = {
   name: string;
@@ -25,6 +34,7 @@ export default function ReceptionPage() {
     selectQueueItem,
     updateQueueItemPayment,
     updateQueueItemPatientDetails,
+    markAdditionalServicePaid,
   } = useQueue();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -52,13 +62,22 @@ export default function ReceptionPage() {
 
   const [visitType, setVisitType] =
     useState<VisitType>("New Patient Visit");
-  const [consultationFee, setConsultationFee] = useState("1000");
+  const [consultationFee, setConsultationFee] = useState(
+    String(clinicSettings.defaultConsultationFee)
+  );
   const [discountAmount, setDiscountAmount] = useState("0");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("Cash");
+
+  const [additionalPaymentMode, setAdditionalPaymentMode] =
+    useState<PaymentMode>("Cash");
+  const [additionalReceiptService, setAdditionalReceiptService] =
+    useState<AdditionalServiceRequest | null>(null);
 
   const [receiptGenerated, setReceiptGenerated] = useState(false);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
+  const [isPrintingAdditionalReceipt, setIsPrintingAdditionalReceipt] =
+    useState(false);
 
   const matchingPatients = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -96,6 +115,9 @@ export default function ReceptionPage() {
   const canEditPayment =
     !queueItemBeingEdited || queueItemBeingEdited.status === "Waiting";
 
+  const pendingAdditionalService =
+    getPendingAdditionalService(selectedQueueItem);
+
   const receiptPatient: Patient | null = queueItemBeingEdited
     ? {
         id: queueItemBeingEdited.id,
@@ -110,7 +132,7 @@ export default function ReceptionPage() {
 
   function resetPaymentState() {
     setVisitType("New Patient Visit");
-    setConsultationFee("1000");
+    setConsultationFee(String(clinicSettings.defaultConsultationFee));
     setDiscountAmount("0");
     setPaymentMode("Cash");
     setReceiptGenerated(false);
@@ -148,7 +170,7 @@ export default function ReceptionPage() {
     setSelectedPatient(patient);
     setShowRegistrationForm(false);
     setVisitType("Returning Patient");
-    setConsultationFee("1000");
+    setConsultationFee(String(clinicSettings.defaultConsultationFee));
     setDiscountAmount("0");
     setPaymentMode("Cash");
     setReceiptGenerated(false);
@@ -196,7 +218,7 @@ export default function ReceptionPage() {
     setShowRegistrationForm(false);
     setSearchTerm(newPatientMobile);
     setVisitType("New Patient Visit");
-    setConsultationFee("1000");
+    setConsultationFee(String(clinicSettings.defaultConsultationFee));
     setDiscountAmount("0");
     setPaymentMode("Cash");
     setReceiptGenerated(false);
@@ -215,6 +237,8 @@ export default function ReceptionPage() {
     setSelectedPatient(null);
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    setAdditionalPaymentMode("Cash");
+    setAdditionalReceiptService(null);
   }
 
   function handleEditSelectedQueuePatient() {
@@ -346,6 +370,37 @@ export default function ReceptionPage() {
     }, 150);
   }
 
+  function handleCollectAdditionalPaymentAndPrint(
+    serviceRequestId: string
+  ) {
+    if (!selectedQueueItem) {
+      alert("Please select a payment-pending patient first.");
+      return;
+    }
+
+    const serviceToPrint = getPendingAdditionalService(selectedQueueItem);
+
+    if (!serviceToPrint || serviceToPrint.id !== serviceRequestId) {
+      alert("No pending additional payment found for this patient.");
+      return;
+    }
+
+    setAdditionalReceiptService(serviceToPrint);
+
+    markAdditionalServicePaid(
+      selectedQueueItem.id,
+      serviceRequestId,
+      additionalPaymentMode
+    );
+
+    setIsPrintingAdditionalReceipt(true);
+
+    setTimeout(() => {
+      window.print();
+      setIsPrintingAdditionalReceipt(false);
+    }, 150);
+  }
+
   function handleStartNextPatient() {
     setSearchTerm("");
     setSelectedPatient(null);
@@ -353,6 +408,8 @@ export default function ReceptionPage() {
     resetNewPatientForm();
     resetPaymentState();
     resetQueueEditState();
+    setAdditionalPaymentMode("Cash");
+    setAdditionalReceiptService(null);
   }
 
   if (isPrintingReceipt) {
@@ -365,6 +422,18 @@ export default function ReceptionPage() {
           consultationFee={Number(consultationFee) || 0}
           discount={Number(discountAmount) || 0}
           amountPaid={amountPayable}
+        />
+      </div>
+    );
+  }
+
+  if (isPrintingAdditionalReceipt) {
+    return (
+      <div className="bg-white p-4">
+        <AdditionalServiceReceiptPreview
+          patient={selectedQueueItem}
+          serviceRequest={additionalReceiptService}
+          paymentMode={additionalPaymentMode}
         />
       </div>
     );
@@ -403,15 +472,26 @@ export default function ReceptionPage() {
               </p>
 
               <p className="mt-2 text-sm text-slate-700">
-                Paid: ₹{selectedQueueItem.amountPaid} ·{" "}
+                Original consult paid: ₹{selectedQueueItem.amountPaid} ·{" "}
                 {selectedQueueItem.paymentMode}
               </p>
+
+              {pendingAdditionalService && (
+                <div className="mt-4 rounded-xl bg-red-600 p-3 text-white">
+                  <p className="text-xs font-bold uppercase tracking-wide text-red-100">
+                    Additional Payment Pending
+                  </p>
+                  <p className="mt-1 text-2xl font-bold">
+                    Collect ₹{pendingAdditionalService.netAmount}
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={handleEditSelectedQueuePatient}
                 className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
               >
-                Edit Patient / Payment
+                Edit Patient / Original Payment
               </button>
             </div>
           )}
@@ -423,6 +503,16 @@ export default function ReceptionPage() {
             subtitle="Find existing patient, register, or correct selected queue patient"
           >
             <div className="grid gap-4">
+              {selectedQueueItem && pendingAdditionalService && (
+                <AdditionalPaymentPendingCard
+                  patient={selectedQueueItem}
+                  paymentMode={additionalPaymentMode}
+                  onPaymentModeChange={setAdditionalPaymentMode}
+                  onCollectPayment={handleCollectAdditionalPaymentAndPrint}
+                  showActions
+                />
+              )}
+
               <input
                 type="text"
                 value={searchTerm}
@@ -566,8 +656,9 @@ export default function ReceptionPage() {
                   </p>
 
                   <p className="mt-1 text-sm text-amber-700">
-                    Patient details can be corrected anytime. Payment can be
-                    changed only while status is Waiting.
+                    Patient details can be corrected anytime. Original
+                    consultation payment can be changed only while status is
+                    Waiting.
                   </p>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -622,8 +713,8 @@ export default function ReceptionPage() {
 
                   {!canEditPayment && (
                     <div className="mt-4 rounded-xl border border-amber-300 bg-white p-4 text-sm text-amber-800">
-                      Clinical work has already started. Payment edits are
-                      locked for normal workflow.
+                      Clinical work has already started. Original consultation
+                      payment edits are locked for normal workflow.
                     </div>
                   )}
                 </div>
@@ -669,7 +760,7 @@ export default function ReceptionPage() {
               {(selectedPatient || queueItemBeingEdited) && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-sm font-medium text-slate-700">
-                    Payment Details
+                    Original Consultation Payment Details
                   </p>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -740,7 +831,9 @@ export default function ReceptionPage() {
                           setReceiptGenerated(false);
                           setShowReceiptPreview(false);
                         }}
-                        disabled={visitType === "Free Follow-Up" || !canEditPayment}
+                        disabled={
+                          visitType === "Free Follow-Up" || !canEditPayment
+                        }
                         className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                       >
                         <option value="Cash">Cash</option>
@@ -753,7 +846,7 @@ export default function ReceptionPage() {
                   <div className="mt-4 rounded-xl bg-slate-50 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-600">
-                        Amount Payable
+                        Original Amount Payable
                       </span>
                       <span className="text-2xl font-bold text-slate-900">
                         ₹{amountPayable}
@@ -763,7 +856,7 @@ export default function ReceptionPage() {
                     <p className="mt-2 text-xs text-slate-500">
                       {canEditPayment
                         ? "Consultation fee can be edited before clinical work starts."
-                        : "Payment is locked because clinical work has already started."}
+                        : "Original consultation payment is locked because clinical work has already started."}
                     </p>
                   </div>
 
@@ -810,8 +903,8 @@ export default function ReceptionPage() {
                       <p className="mt-1 text-sm text-emerald-700">
                         {queueItemBeingEdited
                           ? canEditPayment
-                            ? "Patient details and payment were updated."
-                            : "Patient details were updated. Payment remained locked."
+                            ? "Patient details and original payment were updated."
+                            : "Patient details were updated. Original payment remained locked."
                           : "Patient has been added to the queue."}
                       </p>
 
@@ -829,7 +922,7 @@ export default function ReceptionPage() {
               {showReceiptPreview && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="mb-4 text-sm font-medium text-slate-700">
-                    Receipt Preview
+                    Original Consultation Receipt Preview
                   </p>
 
                   <ReceiptPreview

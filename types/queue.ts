@@ -11,10 +11,36 @@ export type QueueStatus =
   | "Waiting"
   | "Under Optometry"
   | "Needs Optometry Review"
+  | "Additional Payment Pending"
   | "Dilated Waiting"
   | "Ready for Doctor"
   | "Under Consultation"
   | "Completed";
+
+export type AdditionalServiceStatus = "Payment Pending" | "Paid";
+
+export type AdditionalServiceRoute =
+  | "Needs Optometry Review"
+  | "Ready for Doctor";
+
+  export type AdditionalServiceLineItem = {
+    serviceName: string;
+    amount: number;
+  };
+  
+  export type AdditionalServiceRequest = {
+    id: string;
+    services: AdditionalServiceLineItem[];
+    grossAmount: number;
+    discount: number;
+    netAmount: number;
+    notes: string;
+    status: AdditionalServiceStatus;
+    routeAfterPayment: AdditionalServiceRoute;
+    createdAt: string;
+    paidAt?: string;
+    paymentMode?: PaymentMode;
+  };
 
 export type VisionEntry = {
   distanceOD: string;
@@ -87,4 +113,5 @@ export type QueueItem = {
   status: QueueStatus;
   optometristWorkup?: OptometristWorkup;
   doctorConsultation?: DoctorConsultation;
+  additionalServices?: AdditionalServiceRequest[];
 };

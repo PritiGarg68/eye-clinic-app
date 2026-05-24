@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import {
+  AdditionalServiceRequest,
   DoctorConsultation,
   OptometristWorkup,
   PaymentMode,
@@ -34,6 +35,15 @@ type QueueContextValue = {
     patientName: string,
     age: number,
     gender: Patient["gender"]
+  ) => void;
+  addOrReplacePendingAdditionalServiceRequest: (
+    itemId: string,
+    serviceRequest: AdditionalServiceRequest
+  ) => void;
+  markAdditionalServicePaid: (
+    itemId: string,
+    serviceRequestId: string,
+    paymentMode: PaymentMode
   ) => void;
   saveOptometristWorkup: (
     itemId: string,
@@ -163,6 +173,116 @@ export function QueueProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function addOrReplacePendingAdditionalServiceRequest(
+    itemId: string,
+    serviceRequest: AdditionalServiceRequest
+  ) {
+    setQueueItems((currentQueue) =>
+      currentQueue.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+
+        const existingPaidServices = (item.additionalServices || []).filter(
+          (service) => service.status === "Paid"
+        );
+
+        return {
+          ...item,
+          status: "Additional Payment Pending",
+          additionalServices: [...existingPaidServices, serviceRequest],
+        };
+      })
+    );
+
+    setSelectedQueueItem((currentSelected) => {
+      if (!currentSelected || currentSelected.id !== itemId) {
+        return currentSelected;
+      }
+
+      const existingPaidServices = (
+        currentSelected.additionalServices || []
+      ).filter((service) => service.status === "Paid");
+
+      return {
+        ...currentSelected,
+        status: "Additional Payment Pending",
+        additionalServices: [...existingPaidServices, serviceRequest],
+      };
+    });
+  }
+
+  function markAdditionalServicePaid(
+    itemId: string,
+    serviceRequestId: string,
+    paymentMode: PaymentMode
+  ) {
+    let routeAfterPayment: QueueStatus = "Ready for Doctor";
+    const paidAt = new Date().toISOString();
+
+    setQueueItems((currentQueue) =>
+      currentQueue.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+
+        const updatedServices = (item.additionalServices || []).map(
+          (service) => {
+            if (service.id !== serviceRequestId) {
+              return service;
+            }
+
+            routeAfterPayment = service.routeAfterPayment;
+
+            return {
+              ...service,
+              status: "Paid" as const,
+              paymentMode,
+              paidAt,
+            };
+          }
+        );
+
+        return {
+          ...item,
+          status: routeAfterPayment,
+          additionalServices: updatedServices,
+        };
+      })
+    );
+
+    setSelectedQueueItem((currentSelected) => {
+      if (!currentSelected || currentSelected.id !== itemId) {
+        return currentSelected;
+      }
+
+      const updatedServices = (currentSelected.additionalServices || []).map(
+        (service) => {
+          if (service.id !== serviceRequestId) {
+            return service;
+          }
+
+          return {
+            ...service,
+            status: "Paid" as const,
+            paymentMode,
+            paidAt,
+          };
+        }
+      );
+
+      const paidService = updatedServices.find(
+        (service) => service.id === serviceRequestId
+      );
+
+      return {
+        ...currentSelected,
+        status: paidService?.routeAfterPayment || "Ready for Doctor",
+        additionalServices: updatedServices,
+      };
+    });
+  }
+
   function saveOptometristWorkup(
     itemId: string,
     workup: OptometristWorkup
@@ -233,6 +353,8 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         updateQueueItemStatus,
         updateQueueItemPayment,
         updateQueueItemPatientDetails,
+        addOrReplacePendingAdditionalServiceRequest,
+        markAdditionalServicePaid,
         saveOptometristWorkup,
         saveDoctorConsultation,
       }}

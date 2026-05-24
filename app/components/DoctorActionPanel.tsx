@@ -4,6 +4,7 @@ type DoctorActionPanelProps = {
     onPreviewPrescription: () => void;
     onPrintPrescription: () => void;
     onPrintSpectacleAdvice: () => void;
+    onOpenAdditionalServicePanel: () => void;
     onCompleteConsultation: () => void;
   };
   
@@ -13,6 +14,7 @@ type DoctorActionPanelProps = {
     onPreviewPrescription,
     onPrintPrescription,
     onPrintSpectacleAdvice,
+    onOpenAdditionalServicePanel,
     onCompleteConsultation,
   }: DoctorActionPanelProps) {
     return (
@@ -56,6 +58,13 @@ type DoctorActionPanelProps = {
             className="rounded-xl bg-indigo-700 px-4 py-3 text-sm font-medium text-white hover:bg-indigo-800"
           >
             Print Spectacle Advice
+          </button>
+  
+          <button
+            onClick={onOpenAdditionalServicePanel}
+            className="rounded-xl bg-orange-700 px-4 py-3 text-sm font-medium text-white hover:bg-orange-800"
+          >
+            Additional Test / Payment
           </button>
   
           <button

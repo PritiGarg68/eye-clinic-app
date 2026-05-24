@@ -11,10 +11,13 @@ import PatientHistoryPanel from "../components/PatientHistoryPanel";
 import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import DoctorActionPanel from "../components/DoctorActionPanel";
 import DoctorWorkupOverridePanel from "../components/DoctorWorkupOverridePanel";
+import AdditionalServiceRequestPanel from "../components/AdditionalServiceRequestPanel";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
+import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { Patient } from "../../types/patient";
 import {
+  AdditionalServiceRequest,
   DoctorConsultation,
   MedicineRow,
   OptometristWorkup,
@@ -112,6 +115,7 @@ export default function DoctorPage() {
     selectQueueItem,
     updateQueueItemStatus,
     updateQueueItemPatientDetails,
+    addOrReplacePendingAdditionalServiceRequest,
     saveOptometristWorkup,
     saveDoctorConsultation,
   } = useQueue();
@@ -119,6 +123,9 @@ export default function DoctorPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [consultationSaved, setConsultationSaved] = useState(false);
   const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
+  const [showAdditionalServicePanel, setShowAdditionalServicePanel] =
+    useState(false);
+  const [additionalServiceMessage, setAdditionalServiceMessage] = useState("");
   const [isPrintingPrescription, setIsPrintingPrescription] = useState(false);
   const [isPrintingSpectacleAdvice, setIsPrintingSpectacleAdvice] =
     useState(false);
@@ -127,6 +134,9 @@ export default function DoctorPage() {
 
   const canSendBackToOptometrist =
     selectedQueueItem?.status === "Under Consultation";
+
+  const pendingAdditionalService =
+    getPendingAdditionalService(selectedQueueItem);
 
   const finalSpectacleAdvice =
     consultation.finalSpectacleAdvice || emptySpectacleAdvice;
@@ -149,6 +159,8 @@ export default function DoctorPage() {
     setStatusMessage("");
     setConsultationSaved(false);
     setShowPrescriptionPreview(false);
+    setShowAdditionalServicePanel(false);
+    setAdditionalServiceMessage("");
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
   }, [selectedQueueItem?.id]);
@@ -171,6 +183,8 @@ export default function DoctorPage() {
     setStatusMessage("");
     setConsultationSaved(false);
     setShowPrescriptionPreview(false);
+    setShowAdditionalServicePanel(false);
+    setAdditionalServiceMessage("");
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
   }
@@ -438,6 +452,46 @@ export default function DoctorPage() {
     }, 150);
   }
 
+  function handleOpenAdditionalServicePanel() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    setShowAdditionalServicePanel((current) => !current);
+    setAdditionalServiceMessage("");
+  }
+
+  function handleCreateAdditionalServiceRequest(
+    serviceRequest: AdditionalServiceRequest
+  ) {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
+
+    addOrReplacePendingAdditionalServiceRequest(
+      selectedQueueItem.id,
+      serviceRequest
+    );
+
+    setConsultationSaved(true);
+    setShowPrescriptionPreview(false);
+
+    const serviceNames = serviceRequest.services
+      .map((service) => service.serviceName)
+      .join(", ");
+
+    const message = pendingAdditionalService
+      ? `Pending request updated: ${serviceNames}. Revised amount to collect: ₹${serviceRequest.netAmount}.`
+      : `${serviceNames} sent to reception. Amount to collect: ₹${serviceRequest.netAmount}.`;
+
+    setAdditionalServiceMessage(message);
+    setStatusMessage(message);
+  }
+
   function handlePrintSpectacleAdvice() {
     if (!selectedQueueItem) {
       alert("Please select a patient from the queue first.");
@@ -608,6 +662,22 @@ export default function DoctorPage() {
               onRemoveMedicine={removeMedicineRow}
             />
 
+            {showAdditionalServicePanel && (
+              <div className="grid gap-3">
+                <AdditionalServiceRequestPanel
+                  pendingRequest={pendingAdditionalService}
+                  onCreateRequest={handleCreateAdditionalServiceRequest}
+                  onCancel={() => setShowAdditionalServicePanel(false)}
+                />
+
+                {additionalServiceMessage && (
+                  <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm font-medium text-orange-900">
+                    {additionalServiceMessage}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="rounded-xl border border-slate-200 p-4">
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Advice
@@ -682,6 +752,7 @@ export default function DoctorPage() {
             onPreviewPrescription={handlePreviewPrescription}
             onPrintPrescription={handlePrintPrescription}
             onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
+            onOpenAdditionalServicePanel={handleOpenAdditionalServicePanel}
             onCompleteConsultation={handleCompleteConsultation}
           />
         </div>

@@ -23,6 +23,7 @@ type QueueContextValue = {
   selectedQueueItem: QueueItem | null;
   addQueueItem: (item: QueueItem) => void;
   selectQueueItem: (item: QueueItem | null) => void;
+  clearQueueData: () => void;
   updateQueueItemStatus: (itemId: string, status: QueueStatus) => void;
   updateQueueItemPayment: (
     itemId: string,
@@ -87,6 +88,12 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   function selectQueueItem(item: QueueItem | null) {
     setSelectedQueueItem(item);
+  }
+
+  function clearQueueData() {
+    window.localStorage.removeItem(STORAGE_KEY);
+    setQueueItems([]);
+    setSelectedQueueItem(null);
   }
 
   function updateQueueItemStatus(itemId: string, status: QueueStatus) {
@@ -350,6 +357,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         selectedQueueItem,
         addQueueItem,
         selectQueueItem,
+        clearQueueData,
         updateQueueItemStatus,
         updateQueueItemPayment,
         updateQueueItemPatientDetails,

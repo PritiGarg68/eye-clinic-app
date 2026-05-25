@@ -27,15 +27,16 @@ type EditablePatientDetails = {
 };
 
 export default function ReceptionPage() {
-  const {
-    queueItems,
-    selectedQueueItem,
-    addQueueItem,
-    selectQueueItem,
-    updateQueueItemPayment,
-    updateQueueItemPatientDetails,
-    markAdditionalServicePaid,
-  } = useQueue();
+    const {
+        queueItems,
+        selectedQueueItem,
+        addQueueItem,
+        selectQueueItem,
+        clearQueueData,
+        updateQueueItemPayment,
+        updateQueueItemPatientDetails,
+        markAdditionalServicePaid,
+      } = useQueue();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -400,7 +401,28 @@ export default function ReceptionPage() {
       setIsPrintingAdditionalReceipt(false);
     }, 150);
   }
-
+  function handleClearLocalQueueData() {
+    const shouldClear = window.confirm(
+      "Clear local test queue data? This will remove only local queue/visit test data. Sample patients will remain."
+    );
+  
+    if (!shouldClear) {
+      return;
+    }
+  
+    clearQueueData();
+  
+    setSearchTerm("");
+    setSelectedPatient(null);
+    setShowRegistrationForm(false);
+    resetNewPatientForm();
+    resetPaymentState();
+    resetQueueEditState();
+    setAdditionalPaymentMode("Cash");
+    setAdditionalReceiptService(null);
+  
+    alert("Local test queue data cleared.");
+  }
   function handleStartNextPatient() {
     setSearchTerm("");
     setSelectedPatient(null);
@@ -936,18 +958,34 @@ export default function ReceptionPage() {
                 </div>
               )}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
-                  Search Patient
-                </button>
+<div className="grid gap-4 md:grid-cols-2">
+  <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
+    Search Patient
+  </button>
 
-                <button
-                  onClick={handleOpenRegistration}
-                  className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
-                >
-                  New Patient
-                </button>
-              </div>
+  <button
+    onClick={handleOpenRegistration}
+    className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
+  >
+    New Patient
+  </button>
+</div>
+
+<div className="rounded-xl border border-red-200 bg-red-50 p-4">
+  <p className="text-sm font-semibold text-red-800">
+    Test Utility
+  </p>
+  <p className="mt-1 text-xs text-red-700">
+    Clears only local browser queue/test data. Sample patients remain.
+  </p>
+
+  <button
+    onClick={handleClearLocalQueueData}
+    className="mt-3 rounded-xl bg-red-700 px-4 py-3 text-sm font-medium text-white hover:bg-red-800"
+  >
+    Clear Local Test Queue Data
+  </button>
+</div>
             </div>
           </SectionCard>
         </div>

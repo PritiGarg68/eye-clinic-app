@@ -201,6 +201,20 @@ export default function DoctorWorkupOverridePanel({
             </p>
           </div>
         </div>
+        {workup.optometristNotes ? (
+          <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+              Optometrist Notes / Workup Notes
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-blue-900">
+              {workup.optometristNotes}
+            </p>
+            <p className="mt-2 text-xs text-blue-700">
+              Internal note only. Doctor may copy and edit relevant points into
+              findings or advice if needed.
+            </p>
+          </div>
+        ) : null}
 
         <div className="mt-4 rounded-xl border border-slate-200 p-3">
           <p className="mb-3 text-sm font-medium text-slate-700">

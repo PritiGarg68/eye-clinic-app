@@ -41,6 +41,7 @@ const emptyWorkup: OptometristWorkup = {
   iopLeft: "",
   dilationStatus: "Not Done",
   dilationNotes: "",
+  optometristNotes: "",
   spectacleDraft: {
     od: { ...emptySpectacleRow },
     os: { ...emptySpectacleRow },
@@ -455,6 +456,26 @@ export default function OptometristPage() {
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
               </div>
+            </div>
+            <div className="rounded-xl border border-slate-200 p-4">
+              <p className="mb-3 text-sm font-medium text-slate-700">
+                Optometrist Notes / Workup Notes
+              </p>
+
+              <textarea
+                value={workup.optometristNotes}
+                onChange={(event) =>
+                  updateSimpleField("optometristNotes", event.target.value)
+                }
+                disabled={isReadOnly}
+                rows={3}
+                placeholder="Internal workup notes for doctor review, e.g. OCT completed, IOP repeated, patient dilated, report attached."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
+              />
+
+              <p className="mt-2 text-xs text-slate-500">
+                Visible to doctor only. Not printed automatically on prescription.
+              </p>
             </div>
 
             <div className="rounded-xl border border-slate-200 p-4">

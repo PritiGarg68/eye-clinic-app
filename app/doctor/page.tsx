@@ -131,6 +131,7 @@ export default function DoctorPage() {
     useState(false);
   const [consultation, setConsultation] =
     useState<DoctorConsultation>(emptyConsultation);
+  const [isEditingPatientWorkup, setIsEditingPatientWorkup] = useState(false);
 
   const canSendBackToOptometrist =
     selectedQueueItem?.status === "Under Consultation";
@@ -163,6 +164,7 @@ export default function DoctorPage() {
     setAdditionalServiceMessage("");
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
+    setIsEditingPatientWorkup(false);
   }, [selectedQueueItem?.id]);
 
   useEffect(() => {
@@ -187,6 +189,7 @@ export default function DoctorPage() {
     setAdditionalServiceMessage("");
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
+    setIsEditingPatientWorkup(false);
   }
 
   function updateConsultationField<K extends keyof DoctorConsultation>(
@@ -691,8 +694,15 @@ export default function DoctorPage() {
               onSendBackToOptometrist={handleSendBackToOptometrist}
               onSavePatientDetails={handleSavePatientDetailsFromDoctor}
               onSaveWorkup={handleSaveWorkupFromDoctor}
+              onEditModeChange={setIsEditingPatientWorkup}
             />
 
+            {isEditingPatientWorkup ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
+                Edit Patient / Workup mode is active. Save or Cancel the workup edit before entering consultation findings, diagnosis, medicines, advice, or printing.
+              </div>
+            ) : (
+              <>
             <div className="rounded-xl border border-slate-200 p-4">
               <label className="grid gap-2 text-sm font-medium text-slate-700">
                 Findings
@@ -823,6 +833,9 @@ export default function DoctorPage() {
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
                 Consultation draft saved for selected patient.
               </div>
+            )}
+
+              </>
             )}
 
             {showPrescriptionPreview && (

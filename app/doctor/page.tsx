@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
@@ -125,6 +125,7 @@ export default function DoctorPage() {
   const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
   const [showAdditionalServicePanel, setShowAdditionalServicePanel] =
     useState(false);
+    const additionalServicePanelRef = useRef<HTMLDivElement | null>(null);
   const [additionalServiceMessage, setAdditionalServiceMessage] = useState("");
   const [isPrintingPrescription, setIsPrintingPrescription] = useState(false);
   const [isPrintingSpectacleAdvice, setIsPrintingSpectacleAdvice] =
@@ -460,9 +461,16 @@ export default function DoctorPage() {
       alert("Please select a patient from the queue first.");
       return;
     }
-
-    setShowAdditionalServicePanel((current) => !current);
-    setAdditionalServiceMessage("");
+  
+    setShowAdditionalServicePanel(true);
+    setAdditionalServiceMessage("Additional Test / Payment panel opened below.");
+  
+    setTimeout(() => {
+      additionalServicePanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   }
 
   function handleSendForDilation() {
@@ -767,14 +775,25 @@ export default function DoctorPage() {
               onRemoveMedicine={removeMedicineRow}
             />
 
-            {showAdditionalServicePanel && (
-              <div className="grid gap-3">
-                <AdditionalServiceRequestPanel
-                  pendingRequest={pendingAdditionalService}
-                  onCreateRequest={handleCreateAdditionalServiceRequest}
-                  onCancel={() => setShowAdditionalServicePanel(false)}
-                />
+{showAdditionalServicePanel && (
+  <div
+    ref={additionalServicePanelRef}
+    className="grid gap-3 rounded-2xl border-2 border-orange-300 bg-orange-50 p-4"
+  >
+    <div>
+      <p className="text-base font-semibold text-orange-950">
+        Additional Test / Payment
+      </p>
+      <p className="mt-1 text-sm text-orange-800">
+        Select tests or procedures, confirm discount if any, and send the payment request to reception.
+      </p>
+    </div>
 
+    <AdditionalServiceRequestPanel
+      pendingRequest={pendingAdditionalService}
+      onCreateRequest={handleCreateAdditionalServiceRequest}
+      onCancel={() => setShowAdditionalServicePanel(false)}
+    />
                 {additionalServiceMessage && (
                   <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm font-medium text-orange-900">
                     {additionalServiceMessage}

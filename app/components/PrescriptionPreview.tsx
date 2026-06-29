@@ -256,11 +256,17 @@ export default function PrescriptionPreview({
           </div>
 
           <div className="print-compact-section rounded-xl border border-slate-200 p-3">
-            <p className="text-sm font-semibold text-slate-900">Follow-Up</p>
-            <p className="mt-2 text-sm font-semibold text-slate-800">
-              {consultation?.followUpDate || "Not entered"}
-            </p>
-          </div>
+  <p className="text-sm font-semibold text-slate-900">
+    {consultation?.freeFollowUpValidUntil
+      ? "Free Follow-Up Valid Until"
+      : "Follow-Up"}
+  </p>
+  <p className="mt-2 text-sm font-semibold text-slate-800">
+    {consultation?.freeFollowUpValidUntil ||
+      consultation?.followUpDate ||
+      "Not entered"}
+  </p>
+</div>
         </div>
 
         {showSpectacleAdvice && finalSpectacleAdvice && (

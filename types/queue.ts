@@ -76,6 +76,7 @@ export type OptometristWorkup = {
   iopLeft: string;
   dilationStatus: "Not Done" | "Waiting" | "Done";
   dilationNotes: string;
+  optometristNotes: string;
   spectacleDraft: SpectacleAdvice;
   updatedAt?: string;
 };
@@ -95,6 +96,7 @@ export type DoctorConsultation = {
   medicines: MedicineRow[];
   advice: string;
   followUpDate: string;
+  freeFollowUpValidUntil?: string;
   notes: string;
   finalSpectacleAdvice: SpectacleAdvice;
   updatedAt?: string;

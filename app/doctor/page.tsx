@@ -45,6 +45,7 @@ const emptyConsultation: DoctorConsultation = {
   medicines: [],
   advice: "",
   followUpDate: "",
+  freeFollowUpValidUntil: "",
   notes: "",
   finalSpectacleAdvice: emptySpectacleAdvice,
 };
@@ -823,16 +824,44 @@ export default function DoctorPage() {
                   <input
                     type="date"
                     value={consultation.followUpDate}
-                    onChange={(event) =>
-                      updateConsultationField(
-                        "followUpDate",
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => {
+                      const value = event.target.value;
+                    
+                      setConsultation((current) => ({
+                        ...current,
+                        followUpDate: value,
+                        freeFollowUpValidUntil: value ? "" : current.freeFollowUpValidUntil,
+                      }));
+                    
+                      setConsultationSaved(false);
+                      setShowPrescriptionPreview(false);
+                    }}
                     className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                   />
                 </label>
-
+                <label className="grid gap-2 text-sm font-medium text-slate-700">
+  Free Follow-Up Valid Until
+  <input
+    type="date"
+    value={consultation.freeFollowUpValidUntil || ""}
+    onChange={(event) => {
+      const value = event.target.value;
+    
+      setConsultation((current) => ({
+        ...current,
+        freeFollowUpValidUntil: value,
+        followUpDate: value ? "" : current.followUpDate,
+      }));
+    
+      setConsultationSaved(false);
+      setShowPrescriptionPreview(false);
+    }}
+    className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+  />
+  <span className="text-xs font-normal text-slate-500">
+    Optional. Use only when doctor wants to allow a free follow-up until this date.
+  </span>
+</label>
                 <label className="grid gap-2 text-sm font-medium text-slate-700">
                   Doctor Notes
                   <input

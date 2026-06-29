@@ -462,6 +462,101 @@ export default function DoctorPage() {
     setAdditionalServiceMessage("");
   }
 
+  function handleSendForDilation() {
+    if (!selectedQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    if (selectedQueueItem.status === "Completed") {
+      alert(
+        "This consultation is already completed. Reopen it first if changes are needed."
+      );
+      return;
+    }
+
+    const shouldSendForDilation = window.confirm(
+      "Send this patient for dilation? The patient will move to Dilated Waiting and return to doctor after dilation is marked Done."
+    );
+
+    if (!shouldSendForDilation) {
+      return;
+    }
+
+    saveDoctorConsultation(selectedQueueItem.id, consultation);
+
+    const blankWorkup: OptometristWorkup = {
+      chiefComplaint: "",
+      vision: {
+        unaided: {
+          distanceOD: "",
+          distanceOS: "",
+          nearOD: "",
+          nearOS: "",
+        },
+        withGlasses: {
+          distanceOD: "",
+          distanceOS: "",
+          nearOD: "",
+          nearOS: "",
+        },
+        withPinHole: {
+          distanceOD: "",
+          distanceOS: "",
+          nearOD: "",
+          nearOS: "",
+        },
+      },
+      refractionRight: "",
+      refractionLeft: "",
+      iopRight: "",
+      iopLeft: "",
+      dilationStatus: "Not Done",
+      dilationNotes: "",
+      optometristNotes: "",
+      spectacleDraft: {
+        od: {
+          sph: "",
+          cyl: "",
+          axis: "",
+          vision: "",
+        },
+        os: {
+          sph: "",
+          cyl: "",
+          axis: "",
+          vision: "",
+        },
+        add: {
+          sph: "",
+          cyl: "",
+          axis: "",
+          vision: "",
+        },
+        remarks: "",
+      },
+    };
+
+    const existingWorkup = selectedQueueItem.optometristWorkup || blankWorkup;
+
+    const updatedWorkup: OptometristWorkup = {
+      ...existingWorkup,
+      dilationStatus: "Waiting",
+      dilationNotes: existingWorkup.dilationNotes
+        ? `${existingWorkup.dilationNotes}\nSent for dilation by doctor.`
+        : "Sent for dilation by doctor.",
+    };
+
+    saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
+    updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
+
+    setConsultationSaved(true);
+    setShowPrescriptionPreview(false);
+    setStatusMessage(
+      "Patient sent for dilation. Status changed to Dilated Waiting."
+    );
+  }
+
   function handleCreateAdditionalServiceRequest(
     serviceRequest: AdditionalServiceRequest
   ) {
@@ -746,15 +841,16 @@ export default function DoctorPage() {
         </SectionCard>
 
         <div className="lg:col-span-1">
-          <DoctorActionPanel
-            onStartConsultation={handleStartConsultation}
-            onSaveDraft={handleSaveConsultationDraft}
-            onPreviewPrescription={handlePreviewPrescription}
-            onPrintPrescription={handlePrintPrescription}
-            onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
-            onOpenAdditionalServicePanel={handleOpenAdditionalServicePanel}
-            onCompleteConsultation={handleCompleteConsultation}
-          />
+        <DoctorActionPanel
+  onStartConsultation={handleStartConsultation}
+  onSaveDraft={handleSaveConsultationDraft}
+  onPreviewPrescription={handlePreviewPrescription}
+  onPrintPrescription={handlePrintPrescription}
+  onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
+  onOpenAdditionalServicePanel={handleOpenAdditionalServicePanel}
+  onSendForDilation={handleSendForDilation}
+  onCompleteConsultation={handleCompleteConsultation}
+/>
         </div>
       </div>
     </AppShell>

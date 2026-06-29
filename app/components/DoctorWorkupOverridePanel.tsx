@@ -51,8 +51,9 @@ const emptyWorkup: OptometristWorkup = {
   iopRight: "",
   iopLeft: "",
   dilationStatus: "Not Done",
-  dilationNotes: "",
-  spectacleDraft: emptySpectacleAdvice,
+dilationNotes: "",
+optometristNotes: "",
+spectacleDraft: emptySpectacleAdvice,
 };
 
 export default function DoctorWorkupOverridePanel({
@@ -212,14 +213,14 @@ export default function DoctorWorkupOverridePanel({
         {workup.optometristNotes ? (
           <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
-              Optometrist Notes / Workup Notes
+            History / Relevant Background
             </p>
             <p className="mt-1 whitespace-pre-wrap text-sm text-blue-900">
               {workup.optometristNotes}
             </p>
             <p className="mt-2 text-xs text-blue-700">
-              Internal note only. Doctor may copy and edit relevant points into
-              findings or advice if needed.
+            Will print on prescription if filled.
+          
             </p>
           </div>
         ) : null}

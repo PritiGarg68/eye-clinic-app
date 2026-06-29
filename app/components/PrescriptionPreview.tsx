@@ -160,7 +160,16 @@ export default function PrescriptionPreview({
             )}
           </div>
         </div>
-
+        {optometristWorkup?.optometristNotes?.trim() ? (
+          <div className="print-compact-section rounded-xl border border-slate-200 p-3">
+            <p className="text-sm font-semibold text-slate-900">
+              History / Relevant Background
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+              {optometristWorkup.optometristNotes}
+            </p>
+          </div>
+        ) : null}
         <div className="print-compact-section rounded-xl border border-slate-200 p-3">
           <p className="text-sm font-semibold text-slate-900">Findings</p>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">

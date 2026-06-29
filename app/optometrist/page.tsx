@@ -473,7 +473,7 @@ export default function OptometristPage() {
             </div>
             <div className="rounded-xl border border-slate-200 p-4">
               <p className="mb-3 text-sm font-medium text-slate-700">
-                Optometrist Notes / Workup Notes
+              History / Relevant Background
               </p>
 
               <textarea
@@ -483,12 +483,12 @@ export default function OptometristPage() {
                 }
                 disabled={isReadOnly}
                 rows={3}
-                placeholder="Internal workup notes for doctor review, e.g. OCT completed, IOP repeated, patient dilated, report attached."
+                placeholder="Relevant history/background, e.g. diabetes, hypertension, allergy, previous surgery, family history, since when wearing glasses."
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
               />
 
               <p className="mt-2 text-xs text-slate-500">
-                Visible to doctor only. Not printed automatically on prescription.
+              Visible to doctor and printed on prescription if filled.
               </p>
             </div>
 

@@ -221,8 +221,8 @@ export default function OptometristPage() {
 
     setWorkup(updatedWorkup);
     saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
-    updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
-    setStatusMessage("Patient marked as Dilated Waiting.");
+    updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
+    setStatusMessage("Dilation completed. Patient marked Ready for Doctor.");
     setWorkupSaved(true);
   }
 
@@ -231,17 +231,31 @@ export default function OptometristPage() {
       alert("Please select a patient from the queue first.");
       return;
     }
-
+  
     if (selectedQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
-
+  
     if (selectedQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
-
+  
+    if (workup.dilationStatus === "Waiting") {
+      alert(
+        "Dilation is still pending. Please mark dilation as Done before sending the patient Ready for Doctor."
+      );
+    
+      saveOptometristWorkup(selectedQueueItem.id, workup);
+      updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
+      setStatusMessage(
+        "Dilation is pending. Patient remains in Dilated Waiting until dilation is marked Done."
+      );
+      setWorkupSaved(true);
+      return;
+    }
+  
     saveOptometristWorkup(selectedQueueItem.id, workup);
     updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
     setStatusMessage("Patient marked Ready for Doctor.");
@@ -535,7 +549,7 @@ export default function OptometristPage() {
                 onClick={handleMarkDilated}
                 className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
               >
-                Mark Dilated
+                Mark Dilation Done
               </button>
 
               <button

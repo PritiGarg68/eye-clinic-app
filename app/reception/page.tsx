@@ -424,6 +424,7 @@ export default function ReceptionPage() {
     alert("Local test queue data cleared.");
   }
   function handleStartNextPatient() {
+    selectQueueItem(null);
     setSearchTerm("");
     setSelectedPatient(null);
     setShowRegistrationForm(false);
@@ -959,9 +960,12 @@ export default function ReceptionPage() {
               )}
 
 <div className="grid gap-4 md:grid-cols-2">
-  <button className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800">
-    Search Patient
-  </button>
+<button
+  onClick={handleStartNextPatient}
+  className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+>
+  Search Patient
+</button>
 
   <button
     onClick={handleOpenRegistration}

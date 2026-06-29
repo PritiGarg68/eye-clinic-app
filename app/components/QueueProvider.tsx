@@ -59,13 +59,35 @@ type QueueContextValue = {
 const QueueContext = createContext<QueueContextValue | undefined>(undefined);
 
 const STORAGE_KEY = "eye-clinic-queue";
+const STORAGE_DATE_KEY = "eye-clinic-queue-date";
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function QueueProvider({ children }: { children: ReactNode }) {
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [selectedQueueItem, setSelectedQueueItem] =
     useState<QueueItem | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
+    const todayKey = getTodayKey();
+    const savedQueueDate = window.localStorage.getItem(STORAGE_DATE_KEY);
+
+    if (savedQueueDate && savedQueueDate !== todayKey) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      window.localStorage.setItem(STORAGE_DATE_KEY, todayKey);
+      setQueueItems([]);
+      setSelectedQueueItem(null);
+      setIsHydrated(true);
+      return;
+    }
+
+    if (!savedQueueDate) {
+      window.localStorage.setItem(STORAGE_DATE_KEY, todayKey);
+    }
+
     const savedQueue = window.localStorage.getItem(STORAGE_KEY);
 
     if (savedQueue) {
@@ -75,11 +97,18 @@ export function QueueProvider({ children }: { children: ReactNode }) {
         setQueueItems([]);
       }
     }
+
+    setIsHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queueItems));
-  }, [queueItems]);
+    window.localStorage.setItem(STORAGE_DATE_KEY, getTodayKey());
+  }, [queueItems, isHydrated]);
 
   function addQueueItem(item: QueueItem) {
     setQueueItems((currentQueue) => [...currentQueue, item]);
@@ -92,6 +121,7 @@ export function QueueProvider({ children }: { children: ReactNode }) {
 
   function clearQueueData() {
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.setItem(STORAGE_DATE_KEY, getTodayKey());
     setQueueItems([]);
     setSelectedQueueItem(null);
   }

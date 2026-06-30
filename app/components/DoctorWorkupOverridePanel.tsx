@@ -51,10 +51,29 @@ const emptyWorkup: OptometristWorkup = {
   iopRight: "",
   iopLeft: "",
   dilationStatus: "Not Done",
-dilationNotes: "",
-optometristNotes: "",
-spectacleDraft: emptySpectacleAdvice,
+  dilationNotes: "",
+  optometristNotes: "",
+  spectacleDraft: emptySpectacleAdvice,
 };
+
+const historyQuickChips = [
+  "Diabetes",
+  "Hypertension",
+  "Drug allergy",
+  "Previous eye surgery",
+  "Family history of glaucoma",
+  "Wearing glasses since childhood",
+];
+
+function appendText(existingText: string, textToAdd: string) {
+  const trimmedExisting = existingText.trim();
+
+  if (!trimmedExisting) {
+    return textToAdd;
+  }
+
+  return `${trimmedExisting}\n${textToAdd}`;
+}
 
 export default function DoctorWorkupOverridePanel({
   patient,
@@ -348,6 +367,44 @@ export default function DoctorWorkupOverridePanel({
                   }));
                 }}
               />
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="mb-3 text-sm font-medium text-slate-700">
+                History / Relevant Background
+              </p>
+
+              <textarea
+                value={workup.optometristNotes}
+                onChange={(event) =>
+                  updateWorkupField("optometristNotes", event.target.value)
+                }
+                rows={3}
+                placeholder="Relevant history/background, e.g. diabetes, hypertension, allergy, previous surgery, family history, since when wearing glasses."
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500"
+              />
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                {historyQuickChips.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() =>
+                      updateWorkupField(
+                        "optometristNotes",
+                        appendText(workup.optometristNotes, chip)
+                      )
+                    }
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mt-2 text-xs text-slate-500">
+                Doctor can enter relevant history/background here when handling the patient directly. It will print on prescription if filled.
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

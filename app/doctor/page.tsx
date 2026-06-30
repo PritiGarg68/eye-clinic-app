@@ -109,6 +109,43 @@ function normalizeConsultation(
 type SpectacleRowKey = "od" | "os" | "add";
 type SpectacleFieldKey = keyof SpectacleDraftRow;
 
+const findingQuickChips = [
+  "Conjunctival congestion",
+  "Dry eye changes",
+  "Early cataract changes",
+  "Lens clear",
+  "Fundus within normal limits",
+  "IOP within normal limits",
+];
+
+const diagnosisQuickChips = [
+  "Dry eye",
+  "Refractive error",
+  "Cataract",
+  "Allergic conjunctivitis",
+  "Conjunctivitis",
+  "Glaucoma suspect",
+];
+
+const adviceQuickChips = [
+  "Continue drops as advised.",
+  "Avoid rubbing eyes.",
+  "Use lubricating eye drops regularly.",
+  "Review with reports.",
+  "Follow up if symptoms worsen.",
+  "Regular follow-up advised.",
+];
+
+function appendText(existingText: string, textToAdd: string) {
+  const trimmedExisting = existingText.trim();
+
+  if (!trimmedExisting) {
+    return textToAdd;
+  }
+
+  return `${trimmedExisting}\n${textToAdd}`;
+}
+
 export default function DoctorPage() {
   const {
     queueItems,
@@ -732,6 +769,24 @@ export default function DoctorPage() {
                   placeholder="Enter clinical findings, examination notes, slit lamp/fundus observations, etc."
                   className="min-h-36 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {findingQuickChips.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() =>
+                        updateConsultationField(
+                          "findings",
+                          appendText(consultation.findings, chip)
+                        )
+                      }
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
               </label>
             </div>
 
@@ -746,6 +801,24 @@ export default function DoctorPage() {
                   placeholder="Optional short diagnosis or impression"
                   className="min-h-20 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {diagnosisQuickChips.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() =>
+                        updateConsultationField(
+                          "diagnosis",
+                          appendText(consultation.diagnosis, chip)
+                        )
+                      }
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
               </label>
             </div>
 
@@ -823,6 +896,24 @@ export default function DoctorPage() {
                   placeholder="General advice, precautions, tests, procedures..."
                   className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {adviceQuickChips.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() =>
+                        updateConsultationField(
+                          "advice",
+                          appendText(consultation.advice, chip)
+                        )
+                      }
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
               </label>
             </div>
 

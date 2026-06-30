@@ -109,6 +109,7 @@ export default function OptometristPage() {
   const isReadOnly =
     selectedQueueItem?.status === "Under Consultation" ||
     selectedQueueItem?.status === "Completed";
+    const isFormDisabled = !selectedQueueItem || isReadOnly;
 
   useEffect(() => {
     setWorkup(normalizeWorkup(selectedQueueItem?.optometristWorkup));
@@ -362,7 +363,7 @@ export default function OptometristPage() {
                   onChange={(event) =>
                     updateSimpleField("chiefComplaint", event.target.value)
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   placeholder="Example: redness, watering, blurred vision, pain..."
                   className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
@@ -376,7 +377,7 @@ export default function OptometristPage() {
 
               <VisionTable
                 value={workup.vision}
-                readOnly={isReadOnly}
+                readOnly={isFormDisabled}
                 onChange={updateVisionField}
               />
             </div>
@@ -391,7 +392,7 @@ export default function OptometristPage() {
                   onChange={(event) =>
                     updateSimpleField("refractionRight", event.target.value)
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   placeholder="Right eye refraction notes"
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
@@ -402,7 +403,7 @@ export default function OptometristPage() {
                   onChange={(event) =>
                     updateSimpleField("refractionLeft", event.target.value)
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   placeholder="Left eye refraction notes"
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
@@ -421,7 +422,7 @@ export default function OptometristPage() {
                   onChange={(event) =>
                     updateSimpleField("iopRight", event.target.value)
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   placeholder="Right eye IOP"
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
@@ -432,7 +433,7 @@ export default function OptometristPage() {
                   onChange={(event) =>
                     updateSimpleField("iopLeft", event.target.value)
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   placeholder="Left eye IOP"
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
@@ -451,7 +452,7 @@ export default function OptometristPage() {
                       event.target.value as OptometristWorkup["dilationStatus"]
                     )
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 >
                   <option value="Not Done">Not Done</option>
@@ -465,7 +466,7 @@ export default function OptometristPage() {
                   onChange={(event) =>
                     updateSimpleField("dilationNotes", event.target.value)
                   }
-                  disabled={isReadOnly}
+                  disabled={isFormDisabled}
                   placeholder="Dilation notes optional"
                   className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
@@ -481,7 +482,7 @@ export default function OptometristPage() {
                 onChange={(event) =>
                   updateSimpleField("optometristNotes", event.target.value)
                 }
-                disabled={isReadOnly}
+                disabled={isFormDisabled}
                 rows={3}
                 placeholder="Relevant history/background, e.g. diabetes, hypertension, allergy, previous surgery, family history, since when wearing glasses."
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
@@ -503,7 +504,7 @@ export default function OptometristPage() {
                   os: workup.spectacleDraft.os,
                   add: workup.spectacleDraft.add,
                 }}
-                readOnly={isReadOnly}
+                readOnly={isFormDisabled}
                 onChange={updateSpectacleField}
               />
 
@@ -515,7 +516,7 @@ export default function OptometristPage() {
                     onChange={(event) =>
                       updateSpectacleRemarks(event.target.value)
                     }
-                    disabled={isReadOnly}
+                    disabled={isFormDisabled}
                     placeholder="Optional remarks"
                     className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                   />
@@ -539,7 +540,7 @@ export default function OptometristPage() {
 
               <button
                 onClick={handleSaveWorkupDraft}
-                disabled={isReadOnly}
+                disabled={isFormDisabled}
                 className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >
                 Save Workup Draft
@@ -547,14 +548,16 @@ export default function OptometristPage() {
 
               <button
                 onClick={handleMarkDilated}
-                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300"
+                disabled={isFormDisabled}
+                className="rounded-xl bg-slate-200 px-4 py-3 font-medium text-slate-700 hover:bg-slate-300 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
               >
                 Mark Dilation Done
               </button>
 
               <button
                 onClick={handleReadyForDoctor}
-                className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                disabled={isFormDisabled}
+                className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 Ready for Doctor
               </button>

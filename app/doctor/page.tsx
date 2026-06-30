@@ -706,7 +706,16 @@ export default function DoctorPage() {
               onEditModeChange={setIsEditingPatientWorkup}
             />
 
-            {isEditingPatientWorkup ? (
+            {!selectedQueueItem ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-800">
+                  Select a patient before entering consultation details.
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Findings, diagnosis, medicines, advice, follow-up, printing, and payment actions will be available after a patient is selected from the queue.
+                </p>
+              </div>
+            ) : isEditingPatientWorkup ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
                 Edit Patient / Workup mode is active. Save or Cancel the workup edit before entering consultation findings, diagnosis, medicines, advice, or printing.
               </div>

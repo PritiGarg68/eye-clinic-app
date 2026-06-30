@@ -257,8 +257,8 @@ export default function DoctorWorkupOverridePanel({
             Spectacle Draft
           </p>
           <p className="mt-1 text-sm text-indigo-900">
-            Optometrist spectacle draft is used to prefill the editable doctor
-            spectacle advice section below.
+            Spectacle details from workup are available below for doctor review
+            and final advice.
           </p>
         </div>
       </div>

@@ -119,6 +119,16 @@ export default function ReceptionPage() {
   const pendingAdditionalService =
     getPendingAdditionalService(selectedQueueItem);
 
+  const paidAdditionalServices =
+    selectedQueueItem?.additionalServices?.filter(
+      (service) => service.status === "Paid"
+    ) || [];
+
+  const totalPaidAdditionalAmount = paidAdditionalServices.reduce(
+    (total, service) => total + service.netAmount,
+    0
+  );
+
   const receiptPatient: Patient | null = queueItemBeingEdited
     ? {
         id: queueItemBeingEdited.id,
@@ -401,6 +411,24 @@ export default function ReceptionPage() {
       setIsPrintingAdditionalReceipt(false);
     }, 150);
   }
+  function handlePrintPaidAdditionalReceipt(
+    serviceRequest: AdditionalServiceRequest
+  ) {
+    if (!selectedQueueItem) {
+      alert("Please select a patient first.");
+      return;
+    }
+
+    setAdditionalReceiptService(serviceRequest);
+    setAdditionalPaymentMode(serviceRequest.paymentMode || "Cash");
+    setIsPrintingAdditionalReceipt(true);
+
+    setTimeout(() => {
+      window.print();
+      setIsPrintingAdditionalReceipt(false);
+    }, 150);
+  }
+
   function handleClearLocalQueueData() {
     const shouldClear = window.confirm(
       "Clear local test queue data? This will remove only local queue/visit test data. Sample patients will remain."
@@ -516,6 +544,55 @@ export default function ReceptionPage() {
               >
                 Edit Patient / Original Payment
               </button>
+
+              {paidAdditionalServices.length > 0 && (
+                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="text-sm font-semibold text-blue-900">
+                    Paid Additional Tests / Services
+                  </p>
+
+                  <p className="mt-1 text-sm text-blue-800">
+                    Total additional amount paid: ₹{totalPaidAdditionalAmount}
+                  </p>
+
+                  <div className="mt-3 grid gap-3">
+                    {paidAdditionalServices.map((service, index) => (
+                      <div
+                        key={service.id}
+                        className="rounded-xl border border-blue-100 bg-white p-3"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              Additional Receipt {index + 1}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-700">
+                              {service.services
+                                .map((item) => item.serviceName)
+                                .join(", ")}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              Paid: ₹{service.netAmount} ·{" "}
+                              {service.paymentMode || "Cash"}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() =>
+                              handlePrintPaidAdditionalReceipt(service)
+                            }
+                            className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
+                          >
+                            Print Receipt
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </SectionCard>

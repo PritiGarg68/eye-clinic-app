@@ -146,26 +146,35 @@ export default function QueuePanel({
                   Additional Tests Paid
                 </p>
 
-                <p className="mt-1 text-sm font-semibold text-slate-900">
-                  {latestPaidServiceNames}
-                </p>
+                <div className="mt-2 grid gap-2">
+                  {paidServices.map((service) => (
+                    <div
+                      key={service.id}
+                      className="rounded-lg border border-emerald-100 bg-white p-2"
+                    >
+                      <p className="text-sm font-semibold text-slate-900">
+                        {service.services
+                          .map((lineItem) => lineItem.serviceName)
+                          .join(", ")}
+                      </p>
 
-                <p className="mt-1 text-sm font-bold text-emerald-800">
-                  Paid ₹{latestPaidService.netAmount}
-                  {latestPaidService.paymentMode
-                    ? ` · ${latestPaidService.paymentMode}`
-                    : ""}
+                      <p className="mt-1 text-xs font-bold text-emerald-800">
+                        Paid ₹{service.netAmount}
+                        {service.paymentMode
+                          ? ` · ${service.paymentMode}`
+                          : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-2 text-sm font-bold text-emerald-900">
+                  Total additional paid this visit: ₹{totalAdditionalPaid}
                 </p>
 
                 <p className="mt-1 text-xs text-slate-600">
                   Next: {item.status}
                 </p>
-
-                {paidServices.length > 1 && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Total additional paid this visit: ₹{totalAdditionalPaid}
-                  </p>
-                )}
               </div>
             )}
           </button>

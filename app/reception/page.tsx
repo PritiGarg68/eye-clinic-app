@@ -509,6 +509,7 @@ export default function ReceptionPage() {
           patient={selectedQueueItem}
           serviceRequest={additionalReceiptService}
           paymentMode={additionalPaymentMode}
+          clinicSettingsOverride={activeClinicSettings}
         />
       </div>
     );

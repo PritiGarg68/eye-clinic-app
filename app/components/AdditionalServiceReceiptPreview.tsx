@@ -1,4 +1,4 @@
-import { clinicSettings } from "../../lib/clinicSettings";
+import { ClinicSettings, clinicSettings } from "../../lib/clinicSettings";
 import {
   AdditionalServiceRequest,
   PaymentMode,
@@ -10,13 +10,16 @@ type AdditionalServiceReceiptPreviewProps = {
   patient: QueueItem | null;
   serviceRequest: AdditionalServiceRequest | null;
   paymentMode: PaymentMode;
+  clinicSettingsOverride?: ClinicSettings;
 };
 
 export default function AdditionalServiceReceiptPreview({
   patient,
   serviceRequest,
   paymentMode,
+  clinicSettingsOverride,
 }: AdditionalServiceReceiptPreviewProps) {
+  const activeClinicSettings = clinicSettingsOverride || clinicSettings;
   const receiptDate = new Date().toLocaleString();
 
   if (!patient || !serviceRequest) {
@@ -35,13 +38,13 @@ export default function AdditionalServiceReceiptPreview({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xl font-bold tracking-tight">
-              {clinicSettings.clinicName}
+              {activeClinicSettings.clinicName}
             </p>
             <p className="mt-1 text-sm text-slate-600">
-              {clinicSettings.address}
+              {activeClinicSettings.address}
             </p>
             <p className="mt-1 text-sm text-slate-600">
-              {clinicSettings.phone}
+              {activeClinicSettings.phone}
             </p>
             <p className="mt-1 text-xs text-slate-500">
               Receipt for additional test / procedure payment

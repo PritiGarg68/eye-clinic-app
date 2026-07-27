@@ -1,6 +1,6 @@
 import { PaymentMode, VisitType } from "../../types/queue";
 import { Patient } from "../../types/patients";
-import { clinicSettings } from "../../lib/clinicSettings";
+import { ClinicSettings, clinicSettings } from "../../lib/clinicSettings";
 type ReceiptPreviewProps = {
   patient: Patient | null;
   visitType: VisitType;
@@ -8,6 +8,7 @@ type ReceiptPreviewProps = {
   consultationFee: number;
   discount: number;
   amountPaid: number;
+  clinicSettingsOverride?: ClinicSettings;
 };
 
 export default function ReceiptPreview({
@@ -17,7 +18,9 @@ export default function ReceiptPreview({
   consultationFee,
   discount,
   amountPaid,
+  clinicSettingsOverride,
 }: ReceiptPreviewProps) {
+  const activeClinicSettings = clinicSettingsOverride || clinicSettings;
   const receiptDate = new Date().toLocaleString();
   const netAmount = Math.max(consultationFee - discount, 0);
 
@@ -35,13 +38,13 @@ export default function ReceiptPreview({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
           <p className="text-xl font-bold tracking-tight">
-  {clinicSettings.clinicName}
+  {activeClinicSettings.clinicName}
 </p>
 <p className="mt-1 text-sm text-slate-600">
-  {clinicSettings.address}
+  {activeClinicSettings.address}
 </p>
 <p className="mt-1 text-sm text-slate-600">
-  {clinicSettings.phone}
+  {activeClinicSettings.phone}
 </p>
 <p className="mt-1 text-xs text-slate-500">
   Receipt for consultation payment

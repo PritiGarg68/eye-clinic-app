@@ -12,6 +12,7 @@ create table if not exists public.services (
   service_name text not null unique,
   service_category text not null,
   default_amount numeric(10,2) not null default 0,
+  route_after_payment text not null default 'Needs Optometry Review',
   is_active boolean not null default true,
   sort_order integer not null default 1,
   created_at timestamptz not null default now(),
@@ -21,7 +22,10 @@ create table if not exists public.services (
     check (service_category in ('Consultation', 'Investigation', 'Procedure', 'Other')),
 
   constraint services_default_amount_check
-    check (default_amount >= 0)
+    check (default_amount >= 0),
+
+  constraint services_route_after_payment_check
+    check (route_after_payment in ('Needs Optometry Review', 'Ready for Doctor'))
 );
 
 drop trigger if exists trg_services_updated_at on public.services;

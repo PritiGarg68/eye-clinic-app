@@ -52,16 +52,25 @@ insert into public.services (
   service_name,
   service_category,
   default_amount,
-  sort_order
+  sort_order,
+  route_after_payment
 )
 values
-  ('Consultation Fee', 'Consultation', 1000, 1),
-  ('OCT', 'Investigation', 1500, 2),
-  ('Fundus Photo', 'Investigation', 800, 3),
-  ('Perimetry', 'Investigation', 1500, 4),
-  ('IOP', 'Investigation', 0, 5),
-  ('Other Procedure', 'Procedure', 0, 6)
-on conflict do nothing;
+  ('Consultation Fee', 'Consultation', 1000, 1, 'Ready for Doctor'),
+  ('OCT', 'Investigation', 1500, 2, 'Needs Optometry Review'),
+  ('Fundus Photo', 'Investigation', 800, 3, 'Needs Optometry Review'),
+  ('Perimetry', 'Investigation', 1500, 4, 'Needs Optometry Review'),
+  ('IOP', 'Investigation', 0, 5, 'Needs Optometry Review'),
+  ('Other Procedure', 'Procedure', 0, 6, 'Ready for Doctor'),
+  ('B-Scan', 'Investigation', 1200, 7, 'Needs Optometry Review'),
+  ('Repeat IOP', 'Investigation', 300, 8, 'Needs Optometry Review')
+on conflict (service_name) do update
+set
+  service_category = excluded.service_category,
+  default_amount = excluded.default_amount,
+  sort_order = excluded.sort_order,
+  route_after_payment = excluded.route_after_payment,
+  is_active = true;
 
 -- ------------------------------------------------------------
 -- Frequency master

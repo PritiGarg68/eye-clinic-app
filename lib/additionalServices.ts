@@ -1,4 +1,5 @@
 import { AdditionalServiceRoute } from "../types/queue";
+import { supabase } from "./supabaseClient";
 
 export type AdditionalServiceMaster = {
   serviceName: string;
@@ -38,3 +39,36 @@ export const additionalServiceMasters: AdditionalServiceMaster[] = [
     routeAfterPayment: "Ready for Doctor",
   },
 ];
+
+type ServiceRow = {
+  service_name: string | null;
+  default_amount: number | string | null;
+  route_after_payment: AdditionalServiceRoute | null;
+};
+
+export async function fetchAdditionalServiceMasters(): Promise<
+  AdditionalServiceMaster[]
+> {
+  const { data, error } = await supabase
+    .from("services")
+    .select("service_name, default_amount, route_after_payment")
+    .eq("is_active", true)
+    .neq("service_category", "Consultation")
+    .order("sort_order", { ascending: true });
+
+  if (error || !data) {
+    console.warn("Using fallback additional services:", error?.message);
+    return additionalServiceMasters;
+  }
+
+  const services = (data as ServiceRow[])
+    .filter((service) => service.service_name)
+    .map((service) => ({
+      serviceName: service.service_name || "",
+      amount: Number(service.default_amount) || 0,
+      routeAfterPayment:
+        service.route_after_payment || "Needs Optometry Review",
+    }));
+
+  return services.length > 0 ? services : additionalServiceMasters;
+}

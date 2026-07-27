@@ -1,5 +1,5 @@
 import { PaymentMode, VisitType } from "../../types/queue";
-import { Patient } from "../../types/patient";
+import { Patient } from "../../types/patients";
 import { clinicSettings } from "../../lib/clinicSettings";
 type ReceiptPreviewProps = {
   patient: Patient | null;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Patient } from "../../types/patient";
+import { Patient } from "../../types/patients";
 import { OptometristWorkup, QueueItem } from "../../types/queue";
 import VisionTable from "./VisionTable";
 

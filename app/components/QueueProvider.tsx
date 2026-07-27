@@ -16,7 +16,7 @@ import {
   QueueStatus,
   VisitType,
 } from "../../types/queue";
-import { Patient } from "../../types/patient";
+import { Patient } from "../../types/patients";
 
 type QueueContextValue = {
   queueItems: QueueItem[];

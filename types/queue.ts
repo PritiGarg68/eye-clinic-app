@@ -1,4 +1,4 @@
-import { Patient } from "./patient";
+import { Patient } from "./patients";
 
 export type VisitType =
   | "New Patient Visit"

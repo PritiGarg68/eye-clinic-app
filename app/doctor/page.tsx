@@ -15,7 +15,7 @@ import AdditionalServiceRequestPanel from "../components/AdditionalServiceReques
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
-import { Patient } from "../../types/patient";
+import { Patient } from "../../types/patients";
 import {
   AdditionalServiceRequest,
   DoctorConsultation,

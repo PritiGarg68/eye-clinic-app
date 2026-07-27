@@ -12,7 +12,7 @@ import { samplePatients } from "../../lib/samplePatients";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import { clinicSettings } from "../../lib/clinicSettings";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
-import { Patient } from "../../types/patient";
+import { Patient } from "../../types/patients";
 import {
   AdditionalServiceRequest,
   PaymentMode,

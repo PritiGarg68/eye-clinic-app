@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
-
-type ClinicSettings = {
-  clinic_name: string;
-  doctor_name: string;
-  default_consultation_fee: number;
-};
+import { ClinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 
 export default function SupabaseTestPage() {
   const [data, setData] = useState<ClinicSettings | null>(null);
@@ -15,18 +9,12 @@ export default function SupabaseTestPage() {
 
   useEffect(() => {
     async function loadClinicSettings() {
-      const { data, error } = await supabase
-        .from("clinic_settings")
-        .select("clinic_name, doctor_name, default_consultation_fee")
-        .limit(1)
-        .single();
-
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const settings = await fetchClinicSettings();
+        setData(settings);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
       }
-
-      setData(data);
     }
 
     loadClinicSettings();
@@ -46,9 +34,14 @@ export default function SupabaseTestPage() {
 
       {data && (
         <div>
-          <p><strong>Clinic:</strong> {data.clinic_name}</p>
-          <p><strong>Doctor:</strong> {data.doctor_name}</p>
-          <p><strong>Consultation Fee:</strong> ₹{data.default_consultation_fee}</p>
+          <p><strong>Clinic:</strong> {data.clinicName}</p>
+          <p><strong>Doctor:</strong> {data.doctorName}</p>
+          <p><strong>Qualification:</strong> {data.doctorQualification}</p>
+          <p><strong>Registration:</strong> {data.medicalRegistrationNumber}</p>
+          <p><strong>Address:</strong> {data.address}</p>
+          <p><strong>Phone:</strong> {data.phone}</p>
+          <p><strong>Email:</strong> {data.email}</p>
+          <p><strong>Consultation Fee:</strong> ₹{data.defaultConsultationFee}</p>
         </div>
       )}
     </main>

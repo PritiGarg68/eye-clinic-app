@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { additionalServiceMasters } from "../../lib/additionalServices";
+import {
+  AdditionalServiceMaster,
+  additionalServiceMasters,
+  fetchAdditionalServiceMasters,
+} from "../../lib/additionalServices";
 import {
   AdditionalServiceRequest,
   AdditionalServiceRoute,
@@ -18,11 +22,35 @@ export default function AdditionalServiceRequestPanel({
   onCreateRequest,
   onCancel,
 }: AdditionalServiceRequestPanelProps) {
+  const [availableServices, setAvailableServices] = useState<
+    AdditionalServiceMaster[]
+  >(additionalServiceMasters);
+
   const [selectedServiceNames, setSelectedServiceNames] = useState<string[]>(
     []
   );
   const [discount, setDiscount] = useState("0");
   const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAdditionalServices() {
+      const services = await fetchAdditionalServiceMasters();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setAvailableServices(services);
+    }
+
+    loadAdditionalServices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!pendingRequest) {
@@ -40,10 +68,10 @@ export default function AdditionalServiceRequestPanel({
   }, [pendingRequest?.id]);
 
   const selectedServices = useMemo(() => {
-    return additionalServiceMasters.filter((service) =>
+    return availableServices.filter((service) =>
       selectedServiceNames.includes(service.serviceName)
     );
-  }, [selectedServiceNames]);
+  }, [availableServices, selectedServiceNames]);
 
   const grossAmount = selectedServices.reduce(
     (total, service) => total + service.amount,
@@ -129,7 +157,7 @@ export default function AdditionalServiceRequestPanel({
       )}
 
       <div className="mt-4 grid gap-3">
-        {additionalServiceMasters.map((service) => {
+        {availableServices.map((service) => {
           const isSelected = selectedServiceNames.includes(
             service.serviceName
           );

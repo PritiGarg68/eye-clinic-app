@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
@@ -10,7 +10,7 @@ import AdditionalServiceReceiptPreview from "../components/AdditionalServiceRece
 import { useQueue } from "../components/QueueProvider";
 import { samplePatients } from "../../lib/samplePatients";
 import { sortQueueForRole } from "../../lib/queueSorting";
-import { clinicSettings } from "../../lib/clinicSettings";
+import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { Patient } from "../../types/patients";
 import {
@@ -38,6 +38,9 @@ export default function ReceptionPage() {
         markAdditionalServicePaid,
       } = useQueue();
 
+  const [activeClinicSettings, setActiveClinicSettings] =
+    useState(clinicSettings);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [editingQueueItemId, setEditingQueueItemId] = useState<string | null>(
@@ -64,7 +67,7 @@ export default function ReceptionPage() {
   const [visitType, setVisitType] =
     useState<VisitType>("New Patient Visit");
   const [consultationFee, setConsultationFee] = useState(
-    String(clinicSettings.defaultConsultationFee)
+    String(activeClinicSettings.defaultConsultationFee)
   );
   const [discountAmount, setDiscountAmount] = useState("0");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("Cash");
@@ -119,6 +122,27 @@ export default function ReceptionPage() {
   const pendingAdditionalService =
     getPendingAdditionalService(selectedQueueItem);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadClinicSettings() {
+      const settings = await fetchClinicSettings();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setActiveClinicSettings(settings);
+      setConsultationFee(String(settings.defaultConsultationFee));
+    }
+
+    loadClinicSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const paidAdditionalServices =
     selectedQueueItem?.additionalServices?.filter(
       (service) => service.status === "Paid"
@@ -143,7 +167,7 @@ export default function ReceptionPage() {
 
   function resetPaymentState() {
     setVisitType("New Patient Visit");
-    setConsultationFee(String(clinicSettings.defaultConsultationFee));
+    setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
     setDiscountAmount("0");
     setPaymentMode("Cash");
     setReceiptGenerated(false);
@@ -181,7 +205,7 @@ export default function ReceptionPage() {
     setSelectedPatient(patient);
     setShowRegistrationForm(false);
     setVisitType("Returning Patient");
-    setConsultationFee(String(clinicSettings.defaultConsultationFee));
+    setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
     setDiscountAmount("0");
     setPaymentMode("Cash");
     setReceiptGenerated(false);
@@ -229,7 +253,7 @@ export default function ReceptionPage() {
     setShowRegistrationForm(false);
     setSearchTerm(newPatientMobile);
     setVisitType("New Patient Visit");
-    setConsultationFee(String(clinicSettings.defaultConsultationFee));
+    setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
     setDiscountAmount("0");
     setPaymentMode("Cash");
     setReceiptGenerated(false);

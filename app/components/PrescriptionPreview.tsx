@@ -1,9 +1,10 @@
 import { QueueItem } from "../../types/queue";
 import SpectacleTable from "./SpectacleTable";
-import { clinicSettings } from "../../lib/clinicSettings";
+import { ClinicSettings, clinicSettings } from "../../lib/clinicSettings";
 type PrescriptionPreviewProps = {
   patient: QueueItem | null;
   showSpectacleAdvice?: boolean;
+  clinicSettingsOverride?: ClinicSettings;
 };
 
 const visionRows = [
@@ -15,7 +16,9 @@ const visionRows = [
 export default function PrescriptionPreview({
   patient,
   showSpectacleAdvice = true,
+  clinicSettingsOverride,
 }: PrescriptionPreviewProps) {
+  const activeClinicSettings = clinicSettingsOverride || clinicSettings;
   if (!patient) {
     return (
       <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -35,17 +38,17 @@ export default function PrescriptionPreview({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
           <p className="text-2xl font-bold tracking-tight">
-  {clinicSettings.clinicName}
+  {activeClinicSettings.clinicName}
 </p>
 <p className="mt-1 text-sm text-slate-600">
-  {clinicSettings.address}
+  {activeClinicSettings.address}
 </p>
 <p className="mt-1 text-sm text-slate-600">
-  {clinicSettings.phone} · {clinicSettings.email}
+  {activeClinicSettings.phone} · {activeClinicSettings.email}
 </p>
 <p className="mt-1 text-xs text-slate-500">
-  {clinicSettings.doctorName}, {clinicSettings.doctorQualification} · Regn:{" "}
-  {clinicSettings.medicalRegistrationNumber}
+  {activeClinicSettings.doctorName}, {activeClinicSettings.doctorQualification} · Regn:{" "}
+  {activeClinicSettings.medicalRegistrationNumber}
 </p>
           </div>
 
@@ -307,10 +310,10 @@ export default function PrescriptionPreview({
   Doctor Signature
 </p>
 <p className="mt-1 text-xs text-slate-500">
-  {clinicSettings.doctorName}
+  {activeClinicSettings.doctorName}
 </p>
 <p className="text-xs text-slate-500">
-  Regn: {clinicSettings.medicalRegistrationNumber}
+  Regn: {activeClinicSettings.medicalRegistrationNumber}
 </p>
           </div>
         </div>

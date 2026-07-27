@@ -15,6 +15,7 @@ import AdditionalServiceRequestPanel from "../components/AdditionalServiceReques
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
+import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { Patient } from "../../types/patients";
 import {
   AdditionalServiceRequest,
@@ -147,6 +148,8 @@ function appendText(existingText: string, textToAdd: string) {
 }
 
 export default function DoctorPage() {
+  const [activeClinicSettings, setActiveClinicSettings] =
+    useState(clinicSettings);
   const {
     queueItems,
     selectedQueueItem,
@@ -658,6 +661,7 @@ export default function DoctorPage() {
         <PrescriptionPreview
           patient={patientForPrescription}
           showSpectacleAdvice={false}
+          clinicSettingsOverride={activeClinicSettings}
         />
       </div>
     );
@@ -666,7 +670,10 @@ export default function DoctorPage() {
   if (isPrintingSpectacleAdvice) {
     return (
       <div className="bg-white p-4">
-        <SpectacleAdvicePrint patient={patientForPrescription} />
+        <SpectacleAdvicePrint
+          patient={patientForPrescription}
+          clinicSettingsOverride={activeClinicSettings}
+        />
       </div>
     );
   }
@@ -995,6 +1002,7 @@ export default function DoctorPage() {
                 <PrescriptionPreview
                   patient={patientForPrescription}
                   showSpectacleAdvice
+                  clinicSettingsOverride={activeClinicSettings}
                 />
               </div>
             )}

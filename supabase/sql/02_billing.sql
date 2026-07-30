@@ -278,6 +278,8 @@ declare
   v_net_amount numeric;
   v_service_id uuid;
   v_paid_at timestamptz;
+  v_existing_visit_id uuid;
+  v_existing_token_number integer;
 begin
   if not exists (
     select 1
@@ -286,6 +288,19 @@ begin
       and is_active = true
   ) then
     raise exception 'Active patient not found';
+  end if;
+
+  select id, token_number
+  into v_existing_visit_id, v_existing_token_number
+  from public.visits
+  where patient_id = p_patient_id
+    and visit_date = p_visit_date
+    and status not in ('Completed', 'Cancelled')
+  order by checked_in_at desc
+  limit 1;
+
+  if v_existing_visit_id is not null then
+    raise exception 'Patient already has an active visit today: token %', v_existing_token_number;
   end if;
 
   if p_gross_amount < 0 or p_discount_amount < 0 then

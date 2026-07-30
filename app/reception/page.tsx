@@ -167,6 +167,41 @@ export default function ReceptionPage() {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadInitialSupabaseQueue() {
+      setSupabaseQueueStatus("Loading today's Supabase queue...");
+
+      try {
+        const queue = await fetchTodayQueueFromSupabase();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setSupabaseQueueItems(queue);
+        setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setSupabaseQueueStatus(
+          error instanceof Error
+            ? `Error loading Supabase queue: ${error.message}`
+            : "Error loading Supabase queue."
+        );
+      }
+    }
+
+    loadInitialSupabaseQueue();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const term = searchTerm.trim();
 
     if (!term || showRegistrationForm || queueItemBeingEdited) {
@@ -1422,17 +1457,17 @@ export default function ReceptionPage() {
 
 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
   <p className="text-sm font-semibold text-blue-900">
-    Supabase Queue Read Test
+    Supabase Queue
   </p>
   <p className="mt-1 text-xs text-blue-800">
-    Development check: reads today's queue directly from Supabase without changing the local queue.
+    Today's database queue. This is now loaded automatically and can be refreshed manually.
   </p>
 
   <button
     onClick={handleLoadSupabaseQueue}
     className="mt-3 rounded-xl bg-blue-700 px-4 py-3 text-sm font-medium text-white hover:bg-blue-800"
   >
-    Load Supabase Queue
+    Refresh Supabase Queue
   </button>
 
   {supabaseQueueStatus && (

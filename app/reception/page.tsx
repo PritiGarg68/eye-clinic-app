@@ -13,6 +13,10 @@ import { sortQueueForRole } from "../../lib/queueSorting";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
+import {
+  SupabasePatient,
+  searchPatientsFromSupabase,
+} from "../../lib/patientsDb";
 import { Patient } from "../../types/patients";
 import {
   AdditionalServiceRequest,
@@ -44,6 +48,11 @@ export default function ReceptionPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [supabasePatientResults, setSupabasePatientResults] = useState<
+    SupabasePatient[]
+  >([]);
+  const [supabasePatientSearchStatus, setSupabasePatientSearchStatus] =
+    useState("");
   const [editingQueueItemId, setEditingQueueItemId] = useState<string | null>(
     null
   );
@@ -147,6 +156,53 @@ export default function ReceptionPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const term = searchTerm.trim();
+
+    if (!term || showRegistrationForm || queueItemBeingEdited) {
+      setSupabasePatientResults([]);
+      setSupabasePatientSearchStatus("");
+      return;
+    }
+
+    let isMounted = true;
+
+    async function runSupabasePatientSearch() {
+      setSupabasePatientSearchStatus("Searching Supabase patients...");
+
+      try {
+        const results = await searchPatientsFromSupabase(term);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setSupabasePatientResults(results);
+        setSupabasePatientSearchStatus(
+          `Found ${results.length} Supabase patient(s).`
+        );
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setSupabasePatientResults([]);
+        setSupabasePatientSearchStatus(
+          error instanceof Error
+            ? `Supabase patient search error: ${error.message}`
+            : "Supabase patient search error."
+        );
+      }
+    }
+
+    const timeoutId = window.setTimeout(runSupabasePatientSearch, 300);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchTerm, showRegistrationForm, queueItemBeingEdited]);
+
   const paidAdditionalServices =
     selectedQueueItem?.additionalServices?.filter(
       (service) => service.status === "Paid"
@@ -156,6 +212,20 @@ export default function ReceptionPage() {
     (total, service) => total + service.netAmount,
     0
   );
+
+  function mapSupabasePatientToPatient(patient: SupabasePatient): Patient {
+    return {
+      id: patient.id,
+      uhid: patient.uhid,
+      mobile: patient.mobile,
+      name: patient.fullName,
+      age: patient.ageYears,
+      gender: patient.gender,
+      address: patient.address || undefined,
+      notes: patient.referralNotes || undefined,
+      createdAt: patient.createdAt,
+    };
+  }
 
   const receiptPatient: Patient | null = queueItemBeingEdited
     ? {
@@ -202,6 +272,8 @@ export default function ReceptionPage() {
     setShowRegistrationForm(false);
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    setSupabasePatientResults([]);
+    setSupabasePatientSearchStatus("");
     resetQueueEditState();
   }
 
@@ -704,6 +776,51 @@ export default function ReceptionPage() {
                   )}
                 </div>
               )}
+
+              {searchTerm &&
+                !showRegistrationForm &&
+                !queueItemBeingEdited && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <p className="text-sm font-semibold text-blue-900">
+                      Supabase Patient Results
+                    </p>
+
+                    {supabasePatientSearchStatus && (
+                      <p className="mt-1 text-xs text-blue-800">
+                        {supabasePatientSearchStatus}
+                      </p>
+                    )}
+
+                    {supabasePatientResults.length > 0 && (
+                      <div className="mt-3 grid gap-3">
+                        {supabasePatientResults.map((patient) => (
+                          <button
+                            key={patient.id}
+                            onClick={() =>
+                              handleSelectPatient(
+                                mapSupabasePatientToPatient(patient)
+                              )
+                            }
+                            className="rounded-xl border border-blue-100 bg-white p-4 text-left hover:border-blue-400"
+                          >
+                            <p className="font-semibold text-slate-900">
+                              {patient.fullName}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {patient.ageYears} yrs / {patient.gender}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {patient.uhid}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-500">
+                              {patient.mobile}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
               {showRegistrationForm && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4">

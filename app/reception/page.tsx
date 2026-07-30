@@ -15,6 +15,7 @@ import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import {
   SupabasePatient,
+  createPatientInSupabase,
   searchPatientsFromSupabase,
 } from "../../lib/patientsDb";
 import { Patient } from "../../types/patients";
@@ -335,6 +336,49 @@ export default function ReceptionPage() {
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
     resetQueueEditState();
+  }
+
+  async function handleCreateSupabasePatient() {
+    if (!newPatientName || !newPatientMobile || !newPatientAge) {
+      alert("Please enter name, mobile number, and age.");
+      return;
+    }
+
+    setSupabasePatientSearchStatus("Creating patient in Supabase...");
+
+    try {
+      const createdPatient = await createPatientInSupabase({
+        fullName: newPatientName,
+        mobile: newPatientMobile,
+        ageYears: Number(newPatientAge),
+        gender: newPatientGender,
+        address: newPatientAddress,
+        referralNotes: newPatientNotes,
+      });
+
+      const mappedPatient = mapSupabasePatientToPatient(createdPatient);
+
+      setSelectedPatient(mappedPatient);
+      setShowRegistrationForm(false);
+      setSearchTerm(createdPatient.mobile);
+      setVisitType("New Patient Visit");
+      setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
+      setDiscountAmount("0");
+      setPaymentMode("Cash");
+      setReceiptGenerated(false);
+      setShowReceiptPreview(false);
+      setSupabasePatientResults([createdPatient]);
+      setSupabasePatientSearchStatus(
+        `Created Supabase patient ${createdPatient.uhid}.`
+      );
+      resetQueueEditState();
+    } catch (error) {
+      setSupabasePatientSearchStatus(
+        error instanceof Error
+          ? `Supabase patient creation error: ${error.message}`
+          : "Supabase patient creation error."
+      );
+    }
   }
 
   function handleSelectQueueItem(item: QueueItem | null) {
@@ -895,10 +939,17 @@ export default function ReceptionPage() {
 
                   <div className="mt-4 flex flex-wrap gap-3">
                     <button
+                      onClick={handleCreateSupabasePatient}
+                      className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
+                    >
+                      Save Patient to Supabase
+                    </button>
+
+                    <button
                       onClick={handleCreateTemporaryPatient}
                       className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
                     >
-                      Save Patient
+                      Save Local Test Patient
                     </button>
 
                     <button

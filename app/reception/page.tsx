@@ -805,6 +805,62 @@ export default function ReceptionPage() {
     >
       <div className="grid gap-6 lg:grid-cols-3">
         <SectionCard title="Live Queue" subtitle="Reception queue overview">
+          <div className="mb-4">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm font-semibold text-blue-900">
+                Supabase Queue
+              </p>
+              <p className="mt-1 text-xs text-blue-800">
+                Today's database queue. This is now loaded automatically and can be refreshed manually.
+              </p>
+
+              <button
+                onClick={handleLoadSupabaseQueue}
+                className="mt-3 rounded-xl bg-blue-700 px-4 py-3 text-sm font-medium text-white hover:bg-blue-800"
+              >
+                Refresh Supabase Queue
+              </button>
+
+              {supabaseQueueStatus && (
+                <p className="mt-3 text-sm text-blue-900">
+                  {supabaseQueueStatus}
+                </p>
+              )}
+
+              {supabaseQueueItems.length > 0 && (
+                <div className="mt-4 grid gap-3">
+                  {supabaseQueueItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-blue-100 bg-white p-3"
+                    >
+                      <p className="text-sm font-semibold text-slate-900">
+                        Token #{item.tokenNumber} · {item.patientName}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {item.uhid} · {item.age} yrs / {item.gender}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {item.visitType} · {item.status}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Paid ₹{item.amountPaid} · {item.paymentMode}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              Temporary Local Queue
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              This local browser queue is still available during migration, but the Supabase queue above is the database source.
+            </p>
+          </div>
           <QueuePanel
             items={sortQueueForRole(queueItems, "reception")}
             selectedItemId={selectedQueueItem?.id}
@@ -1455,51 +1511,6 @@ export default function ReceptionPage() {
   </button>
 </div>
 
-<div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-  <p className="text-sm font-semibold text-blue-900">
-    Supabase Queue
-  </p>
-  <p className="mt-1 text-xs text-blue-800">
-    Today's database queue. This is now loaded automatically and can be refreshed manually.
-  </p>
-
-  <button
-    onClick={handleLoadSupabaseQueue}
-    className="mt-3 rounded-xl bg-blue-700 px-4 py-3 text-sm font-medium text-white hover:bg-blue-800"
-  >
-    Refresh Supabase Queue
-  </button>
-
-  {supabaseQueueStatus && (
-    <p className="mt-3 text-sm text-blue-900">
-      {supabaseQueueStatus}
-    </p>
-  )}
-
-  {supabaseQueueItems.length > 0 && (
-    <div className="mt-4 grid gap-3">
-      {supabaseQueueItems.map((item) => (
-        <div
-          key={item.id}
-          className="rounded-xl border border-blue-100 bg-white p-3"
-        >
-          <p className="text-sm font-semibold text-slate-900">
-            Token #{item.tokenNumber} · {item.patientName}
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            {item.uhid} · {item.age} yrs / {item.gender}
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            {item.visitType} · {item.status}
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            Paid ₹{item.amountPaid} · {item.paymentMode}
-          </p>
-        </div>
-      ))}
-    </div>
-  )}
-</div>
             </div>
           </SectionCard>
         </div>

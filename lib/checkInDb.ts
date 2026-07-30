@@ -85,3 +85,98 @@ export async function createConsultationCheckIn(
     paidAt: row.returned_paid_at,
   };
 }
+
+type ActiveCheckInVisitRow = {
+  id: string;
+  patient_id: string;
+  visit_date: string;
+  token_number: number;
+  visit_type: VisitType;
+  status: string;
+  payments:
+    | {
+        id: string;
+        receipt_number: string;
+        gross_amount: number | string;
+        discount_amount: number | string;
+        net_amount: number | string;
+        payment_mode: PaymentMode;
+        paid_at: string;
+        payment_type: string;
+        payment_status: string;
+      }[]
+    | null;
+};
+
+export async function fetchActiveConsultationCheckInForPatientToday(
+  patientId: string
+): Promise<ConsultationCheckInResult | null> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("visits")
+    .select(
+      `
+        id,
+        patient_id,
+        visit_date,
+        token_number,
+        visit_type,
+        status,
+        payments (
+          id,
+          receipt_number,
+          gross_amount,
+          discount_amount,
+          net_amount,
+          payment_mode,
+          paid_at,
+          payment_type,
+          payment_status
+        )
+      `
+    )
+    .eq("patient_id", patientId)
+    .eq("visit_date", today)
+    .neq("status", "Completed")
+    .neq("status", "Cancelled")
+    .order("token_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const visit = data as unknown as ActiveCheckInVisitRow;
+  const consultationPayment = visit.payments?.find(
+    (payment) =>
+      payment.payment_type === "Consultation" &&
+      payment.payment_status === "Paid"
+  );
+
+  if (!consultationPayment) {
+    return null;
+  }
+
+  return {
+    visitId: visit.id,
+    patientId: visit.patient_id,
+    visitDate: visit.visit_date,
+    tokenNumber: visit.token_number,
+    visitType: visit.visit_type,
+    status: "Waiting",
+    paymentId: consultationPayment.id,
+    receiptNumber: consultationPayment.receipt_number,
+    grossAmount: Number(consultationPayment.gross_amount || 0),
+    discountAmount: Number(consultationPayment.discount_amount || 0),
+    netAmount: Number(consultationPayment.net_amount || 0),
+    paymentMode: consultationPayment.payment_mode,
+    paidAt: consultationPayment.paid_at,
+  };
+}
+

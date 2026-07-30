@@ -23,6 +23,7 @@ import {
   PaymentMode as SupabasePaymentMode,
   VisitType as SupabaseVisitType,
   createConsultationCheckIn,
+  fetchActiveConsultationCheckInForPatientToday,
 } from "../../lib/checkInDb";
 import { Patient } from "../../types/patients";
 import {
@@ -589,16 +590,30 @@ export default function ReceptionPage() {
         error instanceof Error ? error.message : "Supabase check-in error.";
 
       if (errorMessage.includes("Patient already has an active visit today")) {
-        const tokenMatch = errorMessage.match(/token (\\d+)/);
+        const tokenMatch = errorMessage.match(/token (\d+)/);
         const tokenNumber = tokenMatch?.[1];
 
         const queue = await fetchTodayQueueFromSupabase();
+        const existingCheckIn =
+          await fetchActiveConsultationCheckInForPatientToday(
+            selectedPatient.id
+          );
+
         setSupabaseQueueItems(queue);
         setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
 
+        if (existingCheckIn) {
+          setLatestSupabaseCheckIn(existingCheckIn);
+          setReceiptGenerated(true);
+          setShowReceiptPreview(true);
+        }
+
+        const resolvedTokenNumber =
+          existingCheckIn?.tokenNumber || tokenNumber;
+
         setSupabaseCheckInStatus(
-          tokenNumber
-            ? `This patient is already checked in today as token #${tokenNumber}. The Supabase queue has been refreshed.`
+          resolvedTokenNumber
+            ? `This patient is already checked in today as token #${resolvedTokenNumber}. The Supabase queue has been refreshed.`
             : "This patient is already checked in today. The Supabase queue has been refreshed."
         );
         return;
@@ -1390,14 +1405,14 @@ export default function ReceptionPage() {
                           onClick={handleGenerateReceipt}
                           className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
                         >
-                          Generate Local Receipt & Send to Local Queue
+                          Local Test Only
                         </button>
 
                         <button
                           onClick={handleGenerateSupabaseReceipt}
                           className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
                         >
-                          Generate Supabase Receipt & Send to Supabase Queue
+                          Generate Receipt & Send to Queue
                         </button>
                       </>
                     )}

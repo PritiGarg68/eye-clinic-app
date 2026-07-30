@@ -12,6 +12,7 @@ import { samplePatients } from "../../lib/samplePatients";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
+import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import { Patient } from "../../types/patients";
 import {
   AdditionalServiceRequest,
@@ -76,6 +77,9 @@ export default function ReceptionPage() {
     useState<PaymentMode>("Cash");
   const [additionalReceiptService, setAdditionalReceiptService] =
     useState<AdditionalServiceRequest | null>(null);
+
+  const [supabaseQueueItems, setSupabaseQueueItems] = useState<QueueItem[]>([]);
+  const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
 
   const [receiptGenerated, setReceiptGenerated] = useState(false);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
@@ -451,6 +455,22 @@ export default function ReceptionPage() {
       window.print();
       setIsPrintingAdditionalReceipt(false);
     }, 150);
+  }
+
+  async function handleLoadSupabaseQueue() {
+    setSupabaseQueueStatus("Loading today's Supabase queue...");
+
+    try {
+      const queue = await fetchTodayQueueFromSupabase();
+      setSupabaseQueueItems(queue);
+      setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+    } catch (error) {
+      setSupabaseQueueStatus(
+        error instanceof Error
+          ? `Error loading Supabase queue: ${error.message}`
+          : "Error loading Supabase queue."
+      );
+    }
   }
 
   function handleClearLocalQueueData() {
@@ -1091,6 +1111,52 @@ export default function ReceptionPage() {
   >
     Clear Local Test Queue Data
   </button>
+</div>
+
+<div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+  <p className="text-sm font-semibold text-blue-900">
+    Supabase Queue Read Test
+  </p>
+  <p className="mt-1 text-xs text-blue-800">
+    Development check: reads today's queue directly from Supabase without changing the local queue.
+  </p>
+
+  <button
+    onClick={handleLoadSupabaseQueue}
+    className="mt-3 rounded-xl bg-blue-700 px-4 py-3 text-sm font-medium text-white hover:bg-blue-800"
+  >
+    Load Supabase Queue
+  </button>
+
+  {supabaseQueueStatus && (
+    <p className="mt-3 text-sm text-blue-900">
+      {supabaseQueueStatus}
+    </p>
+  )}
+
+  {supabaseQueueItems.length > 0 && (
+    <div className="mt-4 grid gap-3">
+      {supabaseQueueItems.map((item) => (
+        <div
+          key={item.id}
+          className="rounded-xl border border-blue-100 bg-white p-3"
+        >
+          <p className="text-sm font-semibold text-slate-900">
+            Token #{item.tokenNumber} · {item.patientName}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            {item.uhid} · {item.age} yrs / {item.gender}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            {item.visitType} · {item.status}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            Paid ₹{item.amountPaid} · {item.paymentMode}
+          </p>
+        </div>
+      ))}
+    </div>
+  )}
 </div>
             </div>
           </SectionCard>

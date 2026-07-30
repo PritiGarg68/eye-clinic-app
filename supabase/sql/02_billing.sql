@@ -238,3 +238,173 @@ on public.additional_service_request_items (request_id);
 
 create index if not exists idx_additional_service_request_items_service_id
 on public.additional_service_request_items (service_id);
+
+-- ------------------------------------------------------------
+-- Consultation check-in helper
+-- Creates visit + consultation payment + receipt line item together.
+-- Used by Reception check-in flow.
+-- ------------------------------------------------------------
+create or replace function public.create_consultation_check_in(
+  p_patient_id uuid,
+  p_visit_type text default 'New Consultation',
+  p_visit_date date default current_date,
+  p_gross_amount numeric default 0,
+  p_discount_amount numeric default 0,
+  p_payment_mode text default 'Cash',
+  p_notes text default null
+)
+returns table (
+  visit_id uuid,
+  returned_patient_id uuid,
+  returned_visit_date date,
+  returned_token_number integer,
+  returned_visit_type text,
+  returned_status text,
+  payment_id uuid,
+  receipt_number text,
+  payment_gross_amount numeric,
+  payment_discount_amount numeric,
+  payment_net_amount numeric,
+  returned_payment_mode text,
+  returned_paid_at timestamptz
+)
+language plpgsql
+as $$
+declare
+  v_token_number integer;
+  v_visit_id uuid;
+  v_payment_id uuid;
+  v_receipt_number text;
+  v_net_amount numeric;
+  v_service_id uuid;
+  v_paid_at timestamptz;
+begin
+  if not exists (
+    select 1
+    from public.patients
+    where id = p_patient_id
+      and is_active = true
+  ) then
+    raise exception 'Active patient not found';
+  end if;
+
+  if p_gross_amount < 0 or p_discount_amount < 0 then
+    raise exception 'Amounts cannot be negative';
+  end if;
+
+  if p_discount_amount > p_gross_amount then
+    raise exception 'Discount cannot be more than gross amount';
+  end if;
+
+  v_net_amount := p_gross_amount - p_discount_amount;
+
+  if v_net_amount > 0 and p_payment_mode = 'None' then
+    raise exception 'Payment mode cannot be None when net amount is greater than zero';
+  end if;
+
+  if v_net_amount = 0 then
+    p_payment_mode := 'None';
+  end if;
+
+  select id
+  into v_service_id
+  from public.services
+  where service_name = 'Consultation Fee'
+    and is_active = true
+  limit 1;
+
+  if v_service_id is null then
+    raise exception 'Consultation Fee service not found';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('visit-token-' || p_visit_date::text));
+
+  v_token_number := public.get_next_visit_token(p_visit_date);
+
+  insert into public.visits (
+    patient_id,
+    visit_date,
+    token_number,
+    visit_type,
+    status,
+    priority_level
+  )
+  values (
+    p_patient_id,
+    p_visit_date,
+    v_token_number,
+    p_visit_type,
+    'Waiting',
+    'Normal'
+  )
+  returning id into v_visit_id;
+
+  v_paid_at := now();
+
+  insert into public.payments (
+    visit_id,
+    patient_id,
+    payment_type,
+    payment_status,
+    gross_amount,
+    discount_amount,
+    net_amount,
+    payment_mode,
+    paid_at,
+    notes
+  )
+  values (
+    v_visit_id,
+    p_patient_id,
+    'Consultation',
+    'Paid',
+    p_gross_amount,
+    p_discount_amount,
+    v_net_amount,
+    p_payment_mode,
+    v_paid_at,
+    p_notes
+  )
+  returning id, public.payments.receipt_number
+  into v_payment_id, v_receipt_number;
+
+  insert into public.payment_items (
+    payment_id,
+    service_id,
+    item_name,
+    quantity,
+    unit_amount,
+    gross_amount,
+    discount_amount,
+    net_amount,
+    sort_order
+  )
+  values (
+    v_payment_id,
+    v_service_id,
+    'Consultation Fee',
+    1,
+    p_gross_amount,
+    p_gross_amount,
+    p_discount_amount,
+    v_net_amount,
+    1
+  );
+
+  return query
+  select
+    v_visit_id,
+    p_patient_id,
+    p_visit_date,
+    v_token_number,
+    p_visit_type,
+    'Waiting'::text,
+    v_payment_id,
+    v_receipt_number,
+    p_gross_amount,
+    p_discount_amount,
+    v_net_amount,
+    p_payment_mode,
+    v_paid_at;
+end;
+$$;

@@ -10,6 +10,8 @@ import {
   ConsultationCheckInResult,
   createConsultationCheckIn,
 } from "../../lib/checkInDb";
+import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
+import { QueueItem } from "../../types/queue";
 
 export default function SupabasePatientsTestPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -17,6 +19,7 @@ export default function SupabasePatientsTestPage() {
   const [selectedPatient, setSelectedPatient] = useState<SupabasePatient | null>(null);
   const [checkInResult, setCheckInResult] =
     useState<ConsultationCheckInResult | null>(null);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
@@ -90,6 +93,20 @@ export default function SupabasePatientsTestPage() {
     }
   }
 
+  async function handleFetchTodayQueue() {
+    setStatus("Fetching today's Supabase queue...");
+    setError("");
+
+    try {
+      const queue = await fetchTodayQueueFromSupabase();
+      setQueueItems(queue);
+      setStatus(`Fetched ${queue.length} queue item(s).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("");
+    }
+  }
+
   return (
     <main style={{ padding: 24, fontFamily: "Arial, sans-serif" }}>
       <h1>Supabase Patients Test</h1>
@@ -110,6 +127,10 @@ export default function SupabasePatientsTestPage() {
 
         <button onClick={handleCreateCheckIn} disabled={!selectedPatient}>
           Create Consultation Check-In
+        </button>
+
+        <button onClick={handleFetchTodayQueue}>
+          Fetch Today's Supabase Queue
         </button>
       </div>
 
@@ -140,6 +161,30 @@ export default function SupabasePatientsTestPage() {
           <p><strong>Payment Mode:</strong> {checkInResult.paymentMode}</p>
         </div>
       )}
+
+      <div style={{ marginTop: 24 }}>
+        <h2>Today's Supabase Queue</h2>
+        {queueItems.length === 0 && <p>No queue items loaded.</p>}
+        {queueItems.map((item) => (
+          <div
+            key={item.id}
+            style={{
+              border: "1px solid #0f766e",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 12,
+            }}
+          >
+            <p><strong>Token:</strong> {item.tokenNumber}</p>
+            <p><strong>Patient:</strong> {item.patientName}</p>
+            <p><strong>UHID:</strong> {item.uhid}</p>
+            <p><strong>Visit Type:</strong> {item.visitType}</p>
+            <p><strong>Status:</strong> {item.status}</p>
+            <p><strong>Paid:</strong> ₹{item.amountPaid}</p>
+            <p><strong>Payment Mode:</strong> {item.paymentMode}</p>
+          </div>
+        ))}
+      </div>
 
       <div style={{ marginTop: 24 }}>
         {patients.map((patient) => (

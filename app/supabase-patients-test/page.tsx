@@ -6,10 +6,17 @@ import {
   createPatientInSupabase,
   searchPatientsFromSupabase,
 } from "../../lib/patientsDb";
+import {
+  ConsultationCheckInResult,
+  createConsultationCheckIn,
+} from "../../lib/checkInDb";
 
 export default function SupabasePatientsTestPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [patients, setPatients] = useState<SupabasePatient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<SupabasePatient | null>(null);
+  const [checkInResult, setCheckInResult] =
+    useState<ConsultationCheckInResult | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
@@ -30,6 +37,8 @@ export default function SupabasePatientsTestPage() {
       setStatus(`Created patient ${patient.uhid} - ${patient.fullName}`);
       setSearchTerm(patient.mobile);
       setPatients([patient]);
+      setSelectedPatient(patient);
+      setCheckInResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("");
@@ -43,7 +52,38 @@ export default function SupabasePatientsTestPage() {
     try {
       const results = await searchPatientsFromSupabase(searchTerm);
       setPatients(results);
+      setSelectedPatient(results[0] || null);
+      setCheckInResult(null);
       setStatus(`Found ${results.length} patient(s).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setStatus("");
+    }
+  }
+
+  async function handleCreateCheckIn() {
+    if (!selectedPatient) {
+      setError("Please create or search/select a patient first.");
+      return;
+    }
+
+    setStatus("Creating consultation check-in...");
+    setError("");
+
+    try {
+      const result = await createConsultationCheckIn({
+        patientId: selectedPatient.id,
+        visitType: "New Consultation",
+        grossAmount: 1000,
+        discountAmount: 0,
+        paymentMode: "Cash",
+        notes: "Created from Supabase patients test page",
+      });
+
+      setCheckInResult(result);
+      setStatus(
+        `Created visit token ${result.tokenNumber}, receipt ${result.receiptNumber}`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStatus("");
@@ -67,6 +107,10 @@ export default function SupabasePatientsTestPage() {
         />
 
         <button onClick={handleSearch}>Search Patients</button>
+
+        <button onClick={handleCreateCheckIn} disabled={!selectedPatient}>
+          Create Consultation Check-In
+        </button>
       </div>
 
       {status && <p style={{ color: "green" }}>{status}</p>}
@@ -74,6 +118,27 @@ export default function SupabasePatientsTestPage() {
         <pre style={{ color: "red", whiteSpace: "pre-wrap" }}>
           Error: {error}
         </pre>
+      )}
+
+      {checkInResult && (
+        <div
+          style={{
+            marginTop: 24,
+            border: "2px solid green",
+            borderRadius: 8,
+            padding: 12,
+          }}
+        >
+          <h2>Check-In Created</h2>
+          <p><strong>Visit ID:</strong> {checkInResult.visitId}</p>
+          <p><strong>Token:</strong> {checkInResult.tokenNumber}</p>
+          <p><strong>Status:</strong> {checkInResult.status}</p>
+          <p><strong>Receipt:</strong> {checkInResult.receiptNumber}</p>
+          <p><strong>Gross:</strong> ₹{checkInResult.grossAmount}</p>
+          <p><strong>Discount:</strong> ₹{checkInResult.discountAmount}</p>
+          <p><strong>Net:</strong> ₹{checkInResult.netAmount}</p>
+          <p><strong>Payment Mode:</strong> {checkInResult.paymentMode}</p>
+        </div>
       )}
 
       <div style={{ marginTop: 24 }}>

@@ -523,7 +523,6 @@ export default function ReceptionPage() {
     }
 
     setSupabaseCheckInStatus("Creating Supabase check-in...");
-    setLatestSupabaseCheckIn(null);
 
     try {
       const result = await createConsultationCheckIn({
@@ -551,11 +550,26 @@ export default function ReceptionPage() {
         `Supabase check-in created: token #${result.tokenNumber}, receipt ${result.receiptNumber}.`
       );
     } catch (error) {
-      setSupabaseCheckInStatus(
-        error instanceof Error
-          ? `Supabase check-in error: ${error.message}`
-          : "Supabase check-in error."
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Supabase check-in error.";
+
+      if (errorMessage.includes("Patient already has an active visit today")) {
+        const tokenMatch = errorMessage.match(/token (\\d+)/);
+        const tokenNumber = tokenMatch?.[1];
+
+        const queue = await fetchTodayQueueFromSupabase();
+        setSupabaseQueueItems(queue);
+        setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+
+        setSupabaseCheckInStatus(
+          tokenNumber
+            ? `This patient is already checked in today as token #${tokenNumber}. The Supabase queue has been refreshed.`
+            : "This patient is already checked in today. The Supabase queue has been refreshed."
+        );
+        return;
+      }
+
+      setSupabaseCheckInStatus(`Supabase check-in error: ${errorMessage}`);
     }
   }
 

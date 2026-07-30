@@ -18,6 +18,12 @@ import {
   createPatientInSupabase,
   searchPatientsFromSupabase,
 } from "../../lib/patientsDb";
+import {
+  ConsultationCheckInResult,
+  PaymentMode as SupabasePaymentMode,
+  VisitType as SupabaseVisitType,
+  createConsultationCheckIn,
+} from "../../lib/checkInDb";
 import { Patient } from "../../types/patients";
 import {
   AdditionalServiceRequest,
@@ -90,6 +96,9 @@ export default function ReceptionPage() {
 
   const [supabaseQueueItems, setSupabaseQueueItems] = useState<QueueItem[]>([]);
   const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
+  const [latestSupabaseCheckIn, setLatestSupabaseCheckIn] =
+    useState<ConsultationCheckInResult | null>(null);
+  const [supabaseCheckInStatus, setSupabaseCheckInStatus] = useState("");
 
   const [receiptGenerated, setReceiptGenerated] = useState(false);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
@@ -240,6 +249,35 @@ export default function ReceptionPage() {
       }
     : selectedPatient;
 
+  function mapReceptionVisitTypeToSupabase(
+    currentVisitType: VisitType
+  ): SupabaseVisitType {
+    if (currentVisitType === "New Patient Visit") {
+      return "New Consultation";
+    }
+
+    if (currentVisitType === "Returning Patient") {
+      return "Follow-Up";
+    }
+
+    return "Free Follow-Up";
+  }
+
+  function mapReceptionPaymentModeToSupabase(
+    currentPaymentMode: PaymentMode
+  ): SupabasePaymentMode {
+    return currentPaymentMode;
+  }
+
+  function isSupabasePatient(patient: Patient | null) {
+    return Boolean(
+      patient?.id &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          patient.id
+        )
+    );
+  }
+
   function resetPaymentState() {
     setVisitType("New Patient Visit");
     setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
@@ -275,6 +313,8 @@ export default function ReceptionPage() {
     setShowReceiptPreview(false);
     setSupabasePatientResults([]);
     setSupabasePatientSearchStatus("");
+    setLatestSupabaseCheckIn(null);
+    setSupabaseCheckInStatus("");
     resetQueueEditState();
   }
 
@@ -287,6 +327,8 @@ export default function ReceptionPage() {
     setPaymentMode("Cash");
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+    setLatestSupabaseCheckIn(null);
+    setSupabaseCheckInStatus("");
     resetQueueEditState();
   }
 
@@ -460,6 +502,61 @@ export default function ReceptionPage() {
         ? "Patient details and payment updated."
         : "Patient details updated. Payment was not changed because clinical work has already started."
     );
+  }
+
+  async function handleGenerateSupabaseReceipt() {
+    if (!selectedPatient) {
+      alert("Please select or register a Supabase patient first.");
+      return;
+    }
+
+    if (!isSupabasePatient(selectedPatient)) {
+      alert(
+        "This patient is not saved in Supabase yet. Please use a Supabase search result or Save Patient to Supabase."
+      );
+      return;
+    }
+
+    if (Number(discountAmount) > Number(consultationFee)) {
+      alert("Discount cannot be more than consultation fee.");
+      return;
+    }
+
+    setSupabaseCheckInStatus("Creating Supabase check-in...");
+    setLatestSupabaseCheckIn(null);
+
+    try {
+      const result = await createConsultationCheckIn({
+        patientId: selectedPatient.id,
+        visitType: mapReceptionVisitTypeToSupabase(visitType),
+        grossAmount:
+          visitType === "Free Follow-Up" ? 0 : Number(consultationFee) || 0,
+        discountAmount:
+          visitType === "Free Follow-Up" ? 0 : Number(discountAmount) || 0,
+        paymentMode:
+          visitType === "Free Follow-Up"
+            ? "None"
+            : mapReceptionPaymentModeToSupabase(effectivePaymentMode),
+        notes: "Created from Reception Supabase check-in",
+      });
+
+      const queue = await fetchTodayQueueFromSupabase();
+
+      setLatestSupabaseCheckIn(result);
+      setSupabaseQueueItems(queue);
+      setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+      setReceiptGenerated(true);
+      setShowReceiptPreview(true);
+      setSupabaseCheckInStatus(
+        `Supabase check-in created: token #${result.tokenNumber}, receipt ${result.receiptNumber}.`
+      );
+    } catch (error) {
+      setSupabaseCheckInStatus(
+        error instanceof Error
+          ? `Supabase check-in error: ${error.message}`
+          : "Supabase check-in error."
+      );
+    }
   }
 
   function handleGenerateReceipt() {
@@ -1182,12 +1279,21 @@ export default function ReceptionPage() {
                         Save Corrections
                       </button>
                     ) : (
-                      <button
-                        onClick={handleGenerateReceipt}
-                        className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
-                      >
-                        Generate Receipt & Send to Queue
-                      </button>
+                      <>
+                        <button
+                          onClick={handleGenerateReceipt}
+                          className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                        >
+                          Generate Local Receipt & Send to Local Queue
+                        </button>
+
+                        <button
+                          onClick={handleGenerateSupabaseReceipt}
+                          className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
+                        >
+                          Generate Supabase Receipt & Send to Supabase Queue
+                        </button>
+                      </>
                     )}
 
                     <button
@@ -1204,6 +1310,23 @@ export default function ReceptionPage() {
                       Print Receipt
                     </button>
                   </div>
+
+                  {supabaseCheckInStatus && (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="font-medium text-emerald-800">
+                        {supabaseCheckInStatus}
+                      </p>
+
+                      {latestSupabaseCheckIn && (
+                        <div className="mt-2 text-sm text-emerald-700">
+                          <p>Token: #{latestSupabaseCheckIn.tokenNumber}</p>
+                          <p>Receipt: {latestSupabaseCheckIn.receiptNumber}</p>
+                          <p>Amount: ₹{latestSupabaseCheckIn.netAmount}</p>
+                          <p>Payment Mode: {latestSupabaseCheckIn.paymentMode}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {receiptGenerated && (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">

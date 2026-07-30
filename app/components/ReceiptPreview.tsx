@@ -9,6 +9,7 @@ type ReceiptPreviewProps = {
   discount: number;
   amountPaid: number;
   clinicSettingsOverride?: ClinicSettings;
+  receiptNumberOverride?: string;
 };
 
 export default function ReceiptPreview({
@@ -19,6 +20,7 @@ export default function ReceiptPreview({
   discount,
   amountPaid,
   clinicSettingsOverride,
+  receiptNumberOverride,
 }: ReceiptPreviewProps) {
   const activeClinicSettings = clinicSettingsOverride || clinicSettings;
   const receiptDate = new Date().toLocaleString();
@@ -56,7 +58,7 @@ export default function ReceiptPreview({
               Receipt
             </p>
             <p className="mt-1 text-sm font-semibold text-slate-900">
-              TEMP-{Date.now().toString().slice(-6)}
+              {receiptNumberOverride || `TEMP-${Date.now().toString().slice(-6)}`}
             </p>
           </div>
         </div>

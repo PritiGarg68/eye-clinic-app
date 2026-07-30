@@ -730,6 +730,7 @@ export default function ReceptionPage() {
           consultationFee={Number(consultationFee) || 0}
           discount={Number(discountAmount) || 0}
           amountPaid={amountPayable}
+          receiptNumberOverride={latestSupabaseCheckIn?.receiptNumber}
         />
       </div>
     );
@@ -1368,6 +1369,7 @@ export default function ReceptionPage() {
                     consultationFee={Number(consultationFee) || 0}
                     discount={Number(discountAmount) || 0}
                     amountPaid={amountPayable}
+                    receiptNumberOverride={latestSupabaseCheckIn?.receiptNumber}
                   />
                 </div>
               )}

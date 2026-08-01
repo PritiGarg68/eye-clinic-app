@@ -24,6 +24,7 @@ import {
   VisitType as SupabaseVisitType,
   createConsultationCheckIn,
   fetchActiveConsultationCheckInForPatientToday,
+  updateReceptionCheckIn,
 } from "../../lib/checkInDb";
 import { Patient } from "../../types/patients";
 import {
@@ -64,6 +65,8 @@ export default function ReceptionPage() {
   const [editingQueueItemId, setEditingQueueItemId] = useState<string | null>(
     null
   );
+  const [editingSupabaseQueueItem, setEditingSupabaseQueueItem] =
+    useState<QueueItem | null>(null);
   const [editablePatientDetails, setEditablePatientDetails] =
     useState<EditablePatientDetails>({
       name: "",
@@ -142,6 +145,11 @@ export default function ReceptionPage() {
   const queueItemBeingEdited =
     queueItems.find((item) => item.id === editingQueueItemId) || null;
 
+  const supabaseQueueItemBeingEdited = editingSupabaseQueueItem;
+  const isEditingAnyQueueItem = Boolean(
+    queueItemBeingEdited || supabaseQueueItemBeingEdited
+  );
+
   const canEditPayment =
     !queueItemBeingEdited || queueItemBeingEdited.status === "Waiting";
 
@@ -218,7 +226,7 @@ export default function ReceptionPage() {
   useEffect(() => {
     const term = searchTerm.trim();
 
-    if (!term || showRegistrationForm || queueItemBeingEdited) {
+    if (!term || showRegistrationForm || isEditingAnyQueueItem) {
       setSupabasePatientResults([]);
       setSupabasePatientSearchStatus("");
       return;
@@ -260,7 +268,7 @@ export default function ReceptionPage() {
       isMounted = false;
       window.clearTimeout(timeoutId);
     };
-  }, [searchTerm, showRegistrationForm, queueItemBeingEdited]);
+  }, [searchTerm, showRegistrationForm, isEditingAnyQueueItem]);
 
   const paidAdditionalServices =
     selectedQueueItem?.additionalServices?.filter(
@@ -347,6 +355,7 @@ export default function ReceptionPage() {
 
   function resetQueueEditState() {
     setEditingQueueItemId(null);
+    setEditingSupabaseQueueItem(null);
     setEditablePatientDetails({
       name: "",
       age: "",
@@ -515,6 +524,111 @@ export default function ReceptionPage() {
 
     setReceiptGenerated(false);
     setShowReceiptPreview(false);
+  }
+
+  function handleEditSelectedSupabaseQueuePatient() {
+    if (!selectedSupabaseQueueItem) {
+      alert("Please select a patient from the Supabase queue first.");
+      return;
+    }
+
+    if (selectedSupabaseQueueItem.status !== "Waiting") {
+      alert(
+        `Original check-in can be edited only while status is Waiting. Current status: ${selectedSupabaseQueueItem.status}.`
+      );
+      return;
+    }
+
+    if (!selectedSupabaseQueueItem.patientId) {
+      alert("Selected Supabase queue patient is missing patient id.");
+      return;
+    }
+
+    setEditingSupabaseQueueItem(selectedSupabaseQueueItem);
+    setEditingQueueItemId(null);
+    setSelectedPatient(null);
+    setShowRegistrationForm(false);
+
+    setEditablePatientDetails({
+      name: selectedSupabaseQueueItem.patientName,
+      age: String(selectedSupabaseQueueItem.age),
+      gender: selectedSupabaseQueueItem.gender,
+    });
+
+    setVisitType(selectedSupabaseQueueItem.visitType);
+    setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
+    setDiscountAmount("0");
+
+    if (selectedSupabaseQueueItem.paymentMode !== "None") {
+      setPaymentMode(selectedSupabaseQueueItem.paymentMode);
+    } else {
+      setPaymentMode("Cash");
+    }
+
+    setReceiptGenerated(false);
+    setShowReceiptPreview(false);
+    setLatestSupabaseCheckIn(null);
+    setSupabaseCheckInStatus(
+      `Editing original Supabase check-in for token #${selectedSupabaseQueueItem.tokenNumber}.`
+    );
+  }
+
+  async function handleSaveSupabaseQueuePatientCorrections() {
+    if (!supabaseQueueItemBeingEdited) {
+      alert("Please select a Supabase queue patient to edit.");
+      return;
+    }
+
+    if (!editablePatientDetails.name || !editablePatientDetails.age) {
+      alert("Please enter patient name and age.");
+      return;
+    }
+
+    if (Number(discountAmount) > Number(consultationFee)) {
+      alert("Discount cannot be more than consultation fee.");
+      return;
+    }
+
+    setSupabaseCheckInStatus("Saving Supabase check-in corrections...");
+
+    try {
+      const result = await updateReceptionCheckIn({
+        visitId: supabaseQueueItemBeingEdited.id,
+        fullName: editablePatientDetails.name,
+        ageYears: Number(editablePatientDetails.age),
+        gender: editablePatientDetails.gender,
+        visitType: mapReceptionVisitTypeToSupabase(visitType),
+        grossAmount:
+          visitType === "Free Follow-Up" ? 0 : Number(consultationFee) || 0,
+        discountAmount:
+          visitType === "Free Follow-Up" ? 0 : Number(discountAmount) || 0,
+        paymentMode:
+          visitType === "Free Follow-Up"
+            ? "None"
+            : mapReceptionPaymentModeToSupabase(effectivePaymentMode),
+      });
+
+      const queue = await fetchTodayQueueFromSupabase();
+      const refreshedItem =
+        queue.find((item) => item.id === result.visitId) || null;
+
+      setSupabaseQueueItems(queue);
+      setSelectedSupabaseQueueItem(refreshedItem);
+      setEditingSupabaseQueueItem(null);
+      setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+      setLatestSupabaseCheckIn(result);
+      setReceiptGenerated(true);
+      setShowReceiptPreview(true);
+      setSupabaseCheckInStatus(
+        `Updated token #${result.tokenNumber}. Receipt ${result.receiptNumber} remains unchanged.`
+      );
+    } catch (error) {
+      setSupabaseCheckInStatus(
+        error instanceof Error
+          ? `Supabase check-in update error: ${error.message}`
+          : "Supabase check-in update error."
+      );
+    }
   }
 
   function handleSaveQueuePatientCorrections() {
@@ -927,6 +1041,19 @@ export default function ReceptionPage() {
                   <p className="mt-3 text-xs text-emerald-700">
                     Database queue selection is active. Local queue actions are still separate during migration.
                   </p>
+
+                  {selectedSupabaseQueueItem.status === "Waiting" ? (
+                    <button
+                      onClick={handleEditSelectedSupabaseQueuePatient}
+                      className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
+                    >
+                      Edit Original Check-in
+                    </button>
+                  ) : (
+                    <p className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                      Original check-in can be edited only while status is Waiting.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -1066,7 +1193,7 @@ export default function ReceptionPage() {
                 className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
               />
 
-              {searchTerm && !showRegistrationForm && !queueItemBeingEdited && (
+              {searchTerm && !showRegistrationForm && !isEditingAnyQueueItem && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-sm font-medium text-slate-700">
                     Search Results
@@ -1105,7 +1232,7 @@ export default function ReceptionPage() {
 
               {searchTerm &&
                 !showRegistrationForm &&
-                !queueItemBeingEdited && (
+                !isEditingAnyQueueItem && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <p className="text-sm font-semibold text-blue-900">
                       Supabase Patient Results
@@ -1244,7 +1371,7 @@ export default function ReceptionPage() {
                 </div>
               )}
 
-              {queueItemBeingEdited && (
+              {isEditingAnyQueueItem && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <p className="text-sm font-medium text-amber-800">
                     Editing Queue Patient
@@ -1352,7 +1479,7 @@ export default function ReceptionPage() {
                 </div>
               )}
 
-              {(selectedPatient || queueItemBeingEdited) && (
+              {(selectedPatient || isEditingAnyQueueItem) && (
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <p className="text-sm font-medium text-slate-700">
                     Original Consultation Payment Details
@@ -1463,9 +1590,13 @@ export default function ReceptionPage() {
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    {queueItemBeingEdited ? (
+                    {isEditingAnyQueueItem ? (
                       <button
-                        onClick={handleSaveQueuePatientCorrections}
+                        onClick={
+                          supabaseQueueItemBeingEdited
+                            ? handleSaveSupabaseQueuePatientCorrections
+                            : handleSaveQueuePatientCorrections
+                        }
                         className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
                       >
                         Save Corrections
@@ -1497,7 +1628,7 @@ export default function ReceptionPage() {
                     </button>
                   </div>
 
-                  {!queueItemBeingEdited && (
+                  {!isEditingAnyQueueItem && (
                     <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
                       <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
                         Development fallback

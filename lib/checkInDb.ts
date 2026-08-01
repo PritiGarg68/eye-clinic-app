@@ -180,3 +180,68 @@ export async function fetchActiveConsultationCheckInForPatientToday(
   };
 }
 
+export type UpdateReceptionCheckInInput = {
+  visitId: string;
+  fullName: string;
+  ageYears: number;
+  gender: "Male" | "Female" | "Other";
+  visitType: VisitType;
+  grossAmount: number;
+  discountAmount: number;
+  paymentMode: PaymentMode;
+};
+
+type UpdateReceptionCheckInRow = {
+  returned_visit_id: string;
+  returned_patient_id: string;
+  returned_token_number: number;
+  returned_visit_type: VisitType;
+  returned_status: "Waiting";
+  payment_id: string;
+  receipt_number: string;
+  gross_amount: number | string;
+  discount_amount: number | string;
+  net_amount: number | string;
+  payment_mode: PaymentMode;
+  paid_at: string;
+};
+
+export async function updateReceptionCheckIn(
+  input: UpdateReceptionCheckInInput
+): Promise<ConsultationCheckInResult> {
+  const { data, error } = await supabase
+    .rpc("update_reception_check_in", {
+      p_visit_id: input.visitId,
+      p_full_name: input.fullName,
+      p_age_years: input.ageYears,
+      p_gender: input.gender,
+      p_visit_type: input.visitType,
+      p_gross_amount: input.grossAmount,
+      p_discount_amount: input.discountAmount,
+      p_payment_mode: input.paymentMode,
+    })
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row = data as UpdateReceptionCheckInRow;
+
+  return {
+    visitId: row.returned_visit_id,
+    patientId: row.returned_patient_id,
+    visitDate: new Date().toISOString().slice(0, 10),
+    tokenNumber: row.returned_token_number,
+    visitType: row.returned_visit_type,
+    status: row.returned_status,
+    paymentId: row.payment_id,
+    receiptNumber: row.receipt_number,
+    grossAmount: Number(row.gross_amount),
+    discountAmount: Number(row.discount_amount),
+    netAmount: Number(row.net_amount),
+    paymentMode: row.payment_mode,
+    paidAt: row.paid_at,
+  };
+}
+

@@ -583,3 +583,192 @@ begin
   limit 1;
 end;
 $$;
+
+-- ------------------------------------------------------------
+-- Additional service payment helper
+-- Collects one pending additional-service request into one paid receipt.
+-- Each additional request creates a separate payment/receipt.
+-- ------------------------------------------------------------
+create or replace function public.collect_additional_service_payment(
+  p_request_id uuid,
+  p_payment_mode text default 'Cash'
+)
+returns table (
+  request_id uuid,
+  visit_id uuid,
+  patient_id uuid,
+  payment_id uuid,
+  receipt_number text,
+  gross_amount numeric,
+  discount_amount numeric,
+  net_amount numeric,
+  payment_mode text,
+  paid_at timestamptz,
+  route_after_payment text,
+  visit_status text
+)
+language plpgsql
+as $$
+declare
+  v_request public.additional_service_requests%rowtype;
+  v_visit public.visits%rowtype;
+  v_payment public.payments%rowtype;
+  v_item record;
+  v_item_count integer;
+  v_item_index integer := 0;
+  v_running_discount numeric(10,2) := 0;
+  v_item_discount numeric(10,2) := 0;
+  v_item_net numeric(10,2) := 0;
+begin
+  select *
+  into v_request
+  from public.additional_service_requests
+  where id = p_request_id
+  for update;
+
+  if not found then
+    raise exception 'Additional service request not found.';
+  end if;
+
+  if v_request.status <> 'Payment Pending' then
+    raise exception 'Additional service request is not pending payment.';
+  end if;
+
+  if p_payment_mode not in ('Cash', 'UPI', 'Card', 'Bank Transfer', 'None') then
+    raise exception 'Invalid payment mode: %', p_payment_mode;
+  end if;
+
+  if v_request.net_amount > 0 and p_payment_mode = 'None' then
+    raise exception 'Payment mode None is allowed only for zero amount payments.';
+  end if;
+
+  if v_request.net_amount = 0 then
+    p_payment_mode := 'None';
+  end if;
+
+  select *
+  into v_visit
+  from public.visits
+  where id = v_request.visit_id
+  for update;
+
+  if not found then
+    raise exception 'Visit not found for additional service request.';
+  end if;
+
+  select count(*)
+  into v_item_count
+  from public.additional_service_request_items
+  where additional_service_request_items.request_id = v_request.id;
+
+  if v_item_count = 0 then
+    raise exception 'Additional service request has no line items.';
+  end if;
+
+  insert into public.payments (
+    visit_id,
+    patient_id,
+    payment_type,
+    payment_status,
+    gross_amount,
+    discount_amount,
+    net_amount,
+    payment_mode,
+    paid_at,
+    notes
+  )
+  values (
+    v_request.visit_id,
+    v_request.patient_id,
+    'Additional Service',
+    'Paid',
+    v_request.gross_amount,
+    v_request.discount_amount,
+    v_request.net_amount,
+    p_payment_mode,
+    now(),
+    v_request.notes
+  )
+  returning *
+  into v_payment;
+
+  for v_item in
+    select *
+    from public.additional_service_request_items
+    where additional_service_request_items.request_id = v_request.id
+    order by sort_order, created_at, id
+  loop
+    v_item_index := v_item_index + 1;
+
+    if v_request.discount_amount = 0 or v_request.gross_amount = 0 then
+      v_item_discount := 0;
+    elsif v_item_index < v_item_count then
+      v_item_discount := round(
+        (v_request.discount_amount * v_item.amount / v_request.gross_amount)::numeric,
+        2
+      );
+      v_running_discount := v_running_discount + v_item_discount;
+    else
+      v_item_discount := v_request.discount_amount - v_running_discount;
+    end if;
+
+    if v_item_discount > v_item.amount then
+      v_item_discount := v_item.amount;
+    end if;
+
+    v_item_net := v_item.amount - v_item_discount;
+
+    insert into public.payment_items (
+      payment_id,
+      service_id,
+      item_name,
+      quantity,
+      unit_amount,
+      gross_amount,
+      discount_amount,
+      net_amount,
+      sort_order
+    )
+    values (
+      v_payment.id,
+      v_item.service_id,
+      v_item.service_name_snapshot,
+      1,
+      v_item.amount,
+      v_item.amount,
+      v_item_discount,
+      v_item_net,
+      v_item.sort_order
+    );
+  end loop;
+
+  update public.additional_service_requests
+  set
+    status = 'Paid',
+    linked_payment_id = v_payment.id,
+    paid_at = v_payment.paid_at,
+    updated_at = now()
+  where id = v_request.id;
+
+  update public.visits
+  set
+    status = v_request.route_after_payment,
+    updated_at = now()
+  where id = v_request.visit_id;
+
+  return query
+  select
+    v_request.id as request_id,
+    v_request.visit_id,
+    v_request.patient_id,
+    v_payment.id as payment_id,
+    v_payment.receipt_number,
+    v_payment.gross_amount,
+    v_payment.discount_amount,
+    v_payment.net_amount,
+    v_payment.payment_mode,
+    v_payment.paid_at,
+    v_request.route_after_payment,
+    v_request.route_after_payment as visit_status;
+end;
+$$;

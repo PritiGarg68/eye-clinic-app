@@ -172,6 +172,7 @@ create table if not exists public.visits (
     check (status in (
       'Waiting',
       'Under Optometry',
+      'Needs Optometry Review',
       'Dilated Waiting',
       'Ready for Doctor',
       'Under Consultation',

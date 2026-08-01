@@ -113,10 +113,11 @@ const historyQuickChips = [
 ];
 
 const optometristRelevantStatuses: QueueStatus[] = [
+  "Needs Optometry Review",
   "Waiting",
   "Under Optometry",
-  "Needs Optometry Review",
   "Dilated Waiting",
+  "Ready for Doctor",
 ];
 
 function isOptometristRelevantQueueItem(item: QueueItem) {
@@ -342,18 +343,18 @@ export default function OptometristPage() {
     }
   }
 
-  function handleMarkDilated() {
-    if (!selectedQueueItem) {
+  async function handleMarkDilated() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    if (selectedQueueItem.status === "Completed") {
+    if (activeQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
 
-    if (selectedQueueItem.status === "Under Consultation") {
+    if (activeQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
@@ -364,46 +365,150 @@ export default function OptometristPage() {
     };
 
     setWorkup(updatedWorkup);
-    saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
-    updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
-    setStatusMessage("Dilation completed. Patient marked Ready for Doctor.");
-    setWorkupSaved(true);
+
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        await saveOptometristWorkupToSupabase({
+          visitId: selectedSupabaseQueueItem.id,
+          patientId: selectedSupabaseQueueItem.patientId,
+          workup: updatedWorkup,
+        });
+
+        await updateVisitStatusInSupabase(
+          selectedSupabaseQueueItem.id,
+          "Ready for Doctor"
+        );
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Ready for Doctor" as const,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item
+          )
+        );
+        setStatusMessage(
+          "Dilation completed. Supabase patient marked Ready for Doctor."
+        );
+        setWorkupSaved(true);
+        await loadSupabaseOptometristQueue();
+        setStatusMessage(
+          "Dilation completed. Supabase patient marked Ready for Doctor."
+        );
+      } catch (error) {
+        setWorkupSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not mark Supabase patient Ready for Doctor."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
+      updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
+      setStatusMessage("Dilation completed. Patient marked Ready for Doctor.");
+      setWorkupSaved(true);
+    }
   }
 
-  function handleReadyForDoctor() {
-    if (!selectedQueueItem) {
+  async function handleReadyForDoctor() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
-  
-    if (selectedQueueItem.status === "Completed") {
+
+    if (activeQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
-  
-    if (selectedQueueItem.status === "Under Consultation") {
+
+    if (activeQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
-  
+
+    const nextStatus: QueueStatus =
+      workup.dilationStatus === "Waiting"
+        ? "Dilated Waiting"
+        : "Ready for Doctor";
+
     if (workup.dilationStatus === "Waiting") {
       alert(
-        "Dilation is still pending. Please mark dilation as Done before sending the patient Ready for Doctor."
+        "Dilation is still pending. Patient will remain in Dilated Waiting until dilation is marked Done."
       );
-    
-      saveOptometristWorkup(selectedQueueItem.id, workup);
-      updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
-      setStatusMessage(
-        "Dilation is pending. Patient remains in Dilated Waiting until dilation is marked Done."
-      );
-      setWorkupSaved(true);
+    }
+
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        await saveOptometristWorkupToSupabase({
+          visitId: selectedSupabaseQueueItem.id,
+          patientId: selectedSupabaseQueueItem.patientId,
+          workup,
+        });
+
+        await updateVisitStatusInSupabase(
+          selectedSupabaseQueueItem.id,
+          nextStatus
+        );
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: nextStatus,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item
+          )
+        );
+
+        setStatusMessage(
+          nextStatus === "Dilated Waiting"
+            ? "Supabase workup saved. Patient remains in Dilated Waiting."
+            : "Supabase workup saved. Patient marked Ready for Doctor."
+        );
+        setWorkupSaved(true);
+        await loadSupabaseOptometristQueue();
+      } catch (error) {
+        setWorkupSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not update Supabase workup status."
+        );
+      }
+
       return;
     }
-  
-    saveOptometristWorkup(selectedQueueItem.id, workup);
-    updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
-    setStatusMessage("Patient marked Ready for Doctor.");
-    setWorkupSaved(true);
+
+    if (selectedQueueItem) {
+      saveOptometristWorkup(selectedQueueItem.id, workup);
+      updateQueueItemStatus(selectedQueueItem.id, nextStatus);
+      setStatusMessage(
+        nextStatus === "Dilated Waiting"
+          ? "Dilation is pending. Patient remains in Dilated Waiting until dilation is marked Done."
+          : "Patient marked Ready for Doctor."
+      );
+      setWorkupSaved(true);
+    }
   }
 
   async function handleSaveWorkupDraft() {
@@ -599,7 +704,7 @@ export default function OptometristPage() {
             )}
 
             {statusMessage && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+              <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900 shadow-sm">
                 {statusMessage}
               </div>
             )}
@@ -793,8 +898,8 @@ export default function OptometristPage() {
             </div>
 
             {workupSaved && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-                Workup draft saved for selected patient.
+              <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900 shadow-sm">
+                {statusMessage || "Workup draft saved for selected patient."}
               </div>
             )}
 

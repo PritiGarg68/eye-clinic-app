@@ -8,8 +8,11 @@ import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
+import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import {
   OptometristWorkup,
+  QueueItem,
+  QueueStatus,
   SpectacleDraftRow,
   VisionEntry,
 } from "../../types/queue";
@@ -102,6 +105,17 @@ const historyQuickChips = [
   "Wearing glasses since childhood",
 ];
 
+const optometristRelevantStatuses: QueueStatus[] = [
+  "Waiting",
+  "Under Optometry",
+  "Needs Optometry Review",
+  "Dilated Waiting",
+];
+
+function isOptometristRelevantQueueItem(item: QueueItem) {
+  return optometristRelevantStatuses.includes(item.status);
+}
+
 function appendText(existingText: string, textToAdd: string) {
   const trimmedExisting = existingText.trim();
 
@@ -124,11 +138,63 @@ export default function OptometristPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [workupSaved, setWorkupSaved] = useState(false);
   const [workup, setWorkup] = useState<OptometristWorkup>(emptyWorkup);
+  const [supabaseQueueItems, setSupabaseQueueItems] = useState<QueueItem[]>([]);
+  const [selectedSupabaseQueueItem, setSelectedSupabaseQueueItem] =
+    useState<QueueItem | null>(null);
+  const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
 
   const isReadOnly =
     selectedQueueItem?.status === "Under Consultation" ||
     selectedQueueItem?.status === "Completed";
     const isFormDisabled = !selectedQueueItem || isReadOnly;
+
+  async function loadSupabaseOptometristQueue() {
+    setSupabaseQueueStatus("Loading Supabase optometrist queue...");
+
+    try {
+      const queue = await fetchTodayQueueFromSupabase();
+      const optometryQueue = sortQueueForRole(
+        queue.filter(isOptometristRelevantQueueItem),
+        "optometrist"
+      );
+
+      setSupabaseQueueItems(optometryQueue);
+
+      setSelectedSupabaseQueueItem((current) => {
+        if (!current) {
+          return null;
+        }
+
+        return optometryQueue.find((item) => item.id === current.id) || null;
+      });
+
+      setSupabaseQueueStatus(
+        optometryQueue.length === 0
+          ? "No Supabase patients currently waiting for optometry."
+          : `Loaded ${optometryQueue.length} Supabase optometry queue patient(s).`
+      );
+    } catch (error) {
+      setSupabaseQueueStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not load Supabase optometrist queue."
+      );
+    }
+  }
+
+  useEffect(() => {
+    loadSupabaseOptometristQueue();
+  }, []);
+
+  function handleSelectSupabaseQueuePatient(item: QueueItem) {
+    setSelectedSupabaseQueueItem(item);
+    selectQueueItem(null);
+    setWorkup(normalizeWorkup(item.optometristWorkup));
+    setWorkupSaved(false);
+    setStatusMessage(
+      `Selected Supabase patient #${item.tokenNumber}. Clinical save will be connected in the next step.`
+    );
+  }
 
   useEffect(() => {
     setWorkup(normalizeWorkup(selectedQueueItem?.optometristWorkup));
@@ -310,6 +376,83 @@ export default function OptometristPage() {
           title="Live Queue"
           subtitle="Patients ready for optometrist workup"
         >
+          <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">
+                  Supabase Optometrist Queue
+                </p>
+                <p className="mt-1 text-xs text-emerald-700">
+                  Database queue source for optometry migration.
+                </p>
+              </div>
+
+              <button
+                onClick={loadSupabaseOptometristQueue}
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {supabaseQueueStatus && (
+              <p className="mt-3 text-xs text-emerald-800">
+                {supabaseQueueStatus}
+              </p>
+            )}
+
+            {supabaseQueueItems.length > 0 && (
+              <div className="mt-4 grid gap-3">
+                {supabaseQueueItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectSupabaseQueuePatient(item)}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      selectedSupabaseQueueItem?.id === item.id
+                        ? "border-emerald-500 bg-white shadow-sm"
+                        : "border-emerald-100 bg-white/70 hover:bg-white"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-slate-900">
+                      #{item.tokenNumber} · {item.patientName}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {item.uhid} · {item.age} yrs / {item.gender}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {item.visitType} · {item.status}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedSupabaseQueueItem && (
+              <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                  Selected Supabase Patient
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  #{selectedSupabaseQueueItem.tokenNumber} ·{" "}
+                  {selectedSupabaseQueueItem.patientName}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Status: {selectedSupabaseQueueItem.status}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+              Temporary Local Queue
+            </p>
+            <p className="mt-1 text-xs text-amber-700">
+              Local browser queue remains available during migration.
+            </p>
+          </div>
+
           <QueuePanel
             items={sortQueueForRole(queueItems, "optometrist")}
             selectedItemId={selectedQueueItem?.id}

@@ -104,11 +104,13 @@ export type DoctorConsultation = {
 
 export type QueueItem = {
   id: string;
+  patientId?: string;
   tokenNumber: number;
   patientName: string;
   age: number;
   gender: Patient["gender"];
   uhid: string;
+  mobile?: string;
   visitType: VisitType;
   paymentMode: PaymentMode;
   amountPaid: number;

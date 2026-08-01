@@ -31,14 +31,18 @@ type QueueVisitRow = {
   status: SupabaseVisitStatus;
   patients:
     | {
+        id: string;
         uhid: string;
         full_name: string;
+        mobile: string;
         age_years: number;
         gender: "Male" | "Female" | "Other";
       }
     | {
+        id: string;
         uhid: string;
         full_name: string;
+        mobile: string;
         age_years: number;
         gender: "Male" | "Female" | "Other";
       }[]
@@ -98,8 +102,10 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
         visit_type,
         status,
         patients (
+          id,
           uhid,
           full_name,
+          mobile,
           age_years,
           gender
         ),
@@ -132,11 +138,13 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
 
     return {
       id: visit.id,
+      patientId: patient?.id,
       tokenNumber: visit.token_number,
       patientName: patient?.full_name || "Unknown Patient",
       age: patient?.age_years || 0,
       gender: patient?.gender || "Other",
       uhid: patient?.uhid || "-",
+      mobile: patient?.mobile,
       visitType: mapVisitType(visit.visit_type),
       paymentMode: mapPaymentMode(consultationPayment?.payment_mode || "None"),
       amountPaid: Number(consultationPayment?.net_amount || 0),

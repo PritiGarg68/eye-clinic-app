@@ -423,3 +423,163 @@ begin
     v_paid_at;
 end;
 $$;
+
+-- Update original reception check-in while visit is still Waiting.
+-- Keeps the same visit, token, payment, and receipt number.
+create or replace function public.update_reception_check_in(
+  p_visit_id uuid,
+  p_full_name text,
+  p_age_years integer,
+  p_gender text,
+  p_visit_type text,
+  p_gross_amount numeric,
+  p_discount_amount numeric,
+  p_payment_mode text
+)
+returns table (
+  returned_visit_id uuid,
+  returned_patient_id uuid,
+  returned_token_number integer,
+  returned_visit_type text,
+  returned_status text,
+  payment_id uuid,
+  receipt_number text,
+  gross_amount numeric,
+  discount_amount numeric,
+  net_amount numeric,
+  payment_mode text,
+  paid_at timestamptz
+)
+language plpgsql
+as $$
+declare
+  v_visit public.visits%rowtype;
+  v_payment public.payments%rowtype;
+  v_patient_id uuid;
+  v_net_amount numeric;
+  v_final_payment_mode text;
+begin
+  select *
+  into v_visit
+  from public.visits
+  where id = p_visit_id
+  for update;
+
+  if not found then
+    raise exception 'Visit not found';
+  end if;
+
+  if v_visit.status <> 'Waiting' then
+    raise exception 'Original reception check-in can be edited only while visit status is Waiting. Current status: %', v_visit.status;
+  end if;
+
+  if p_full_name is null or length(trim(p_full_name)) = 0 then
+    raise exception 'Patient name is required';
+  end if;
+
+  if p_age_years is null or p_age_years < 0 then
+    raise exception 'Valid patient age is required';
+  end if;
+
+  if p_gender not in ('Male', 'Female', 'Other') then
+    raise exception 'Invalid gender';
+  end if;
+
+  if p_visit_type not in ('New Consultation', 'Follow-Up', 'Free Follow-Up', 'Procedure / Test Only') then
+    raise exception 'Invalid visit type';
+  end if;
+
+  if p_gross_amount < 0 or p_discount_amount < 0 then
+    raise exception 'Amounts cannot be negative';
+  end if;
+
+  if p_discount_amount > p_gross_amount then
+    raise exception 'Discount cannot be more than gross amount';
+  end if;
+
+  v_net_amount := p_gross_amount - p_discount_amount;
+
+  if v_net_amount = 0 then
+    v_final_payment_mode := 'None';
+  else
+    v_final_payment_mode := p_payment_mode;
+  end if;
+
+  if v_net_amount > 0 and v_final_payment_mode not in ('Cash', 'UPI', 'Card', 'Bank Transfer') then
+    raise exception 'Valid payment mode is required for paid consultation';
+  end if;
+
+  if v_net_amount = 0 and v_final_payment_mode <> 'None' then
+    raise exception 'Zero amount payment must use payment mode None';
+  end if;
+
+  v_patient_id := v_visit.patient_id;
+
+  update public.patients pt
+  set
+    full_name = trim(p_full_name),
+    age_years = p_age_years,
+    gender = p_gender,
+    updated_at = now()
+  where pt.id = v_patient_id;
+
+  update public.visits vs
+  set
+    visit_type = p_visit_type,
+    updated_at = now()
+  where vs.id = p_visit_id;
+
+  select *
+  into v_payment
+  from public.payments pmt
+  where pmt.visit_id = p_visit_id
+    and pmt.payment_type = 'Consultation'
+    and pmt.payment_status = 'Paid'
+  order by pmt.created_at asc
+  limit 1
+  for update;
+
+  if not found then
+    raise exception 'Consultation payment not found for visit';
+  end if;
+
+  update public.payments pmt
+  set
+    gross_amount = p_gross_amount,
+    discount_amount = p_discount_amount,
+    net_amount = v_net_amount,
+    payment_mode = v_final_payment_mode,
+    updated_at = now()
+  where pmt.id = v_payment.id;
+
+  update public.payment_items pi
+  set
+    unit_amount = p_gross_amount,
+    gross_amount = p_gross_amount,
+    discount_amount = p_discount_amount,
+    net_amount = v_net_amount
+  where pi.payment_id = v_payment.id
+    and pi.sort_order = 1;
+
+  return query
+  select
+    vs.id as returned_visit_id,
+    vs.patient_id as returned_patient_id,
+    vs.token_number as returned_token_number,
+    vs.visit_type as returned_visit_type,
+    vs.status as returned_status,
+    pmt.id as payment_id,
+    pmt.receipt_number,
+    pmt.gross_amount,
+    pmt.discount_amount,
+    pmt.net_amount,
+    pmt.payment_mode,
+    pmt.paid_at
+  from public.visits vs
+  join public.payments pmt on pmt.visit_id = vs.id
+  where vs.id = p_visit_id
+    and pmt.payment_type = 'Consultation'
+    and pmt.payment_status = 'Paid'
+  limit 1;
+end;
+$$;

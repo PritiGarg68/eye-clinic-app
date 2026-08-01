@@ -13,6 +13,10 @@ import {
   updateVisitStatusInSupabase,
 } from "../../lib/queueDb";
 import {
+  fetchOptometristWorkupFromSupabase,
+  saveOptometristWorkupToSupabase,
+} from "../../lib/optometristWorkupDb";
+import {
   OptometristWorkup,
   QueueItem,
   QueueStatus,
@@ -191,14 +195,29 @@ export default function OptometristPage() {
     loadSupabaseOptometristQueue();
   }, []);
 
-  function handleSelectSupabaseQueuePatient(item: QueueItem) {
+  async function handleSelectSupabaseQueuePatient(item: QueueItem) {
     setSelectedSupabaseQueueItem(item);
     selectQueueItem(null);
     setWorkup(normalizeWorkup(item.optometristWorkup));
     setWorkupSaved(false);
-    setStatusMessage(
-      `Selected Supabase patient #${item.tokenNumber}. Clinical save will be connected in the next step.`
-    );
+    setStatusMessage(`Selected Supabase patient #${item.tokenNumber}.`);
+
+    try {
+      const savedWorkup = await fetchOptometristWorkupFromSupabase(item.id);
+
+      if (savedWorkup) {
+        setWorkup(normalizeWorkup(savedWorkup));
+        setStatusMessage(
+          `Loaded saved Supabase workup for token #${item.tokenNumber}.`
+        );
+      }
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not load saved Supabase workup."
+      );
+    }
   }
 
   useEffect(() => {
@@ -387,8 +406,8 @@ export default function OptometristPage() {
     setWorkupSaved(true);
   }
 
-  function handleSaveWorkupDraft() {
-    if (!selectedQueueItem) {
+  async function handleSaveWorkupDraft() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
@@ -400,9 +419,38 @@ export default function OptometristPage() {
       return;
     }
 
-    saveOptometristWorkup(selectedQueueItem.id, workup);
-    setWorkupSaved(true);
-    setStatusMessage("Optometrist workup draft saved.");
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        await saveOptometristWorkupToSupabase({
+          visitId: selectedSupabaseQueueItem.id,
+          patientId: selectedSupabaseQueueItem.patientId,
+          workup,
+        });
+
+        setWorkupSaved(true);
+        setStatusMessage("Supabase optometrist workup draft saved.");
+      } catch (error) {
+        setWorkupSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not save Supabase optometrist workup."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveOptometristWorkup(selectedQueueItem.id, workup);
+      setWorkupSaved(true);
+      setStatusMessage("Optometrist workup draft saved.");
+    }
   }
 
   return (

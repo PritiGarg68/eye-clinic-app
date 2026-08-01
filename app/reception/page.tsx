@@ -96,6 +96,8 @@ export default function ReceptionPage() {
     useState<AdditionalServiceRequest | null>(null);
 
   const [supabaseQueueItems, setSupabaseQueueItems] = useState<QueueItem[]>([]);
+  const [selectedSupabaseQueueItem, setSelectedSupabaseQueueItem] =
+    useState<QueueItem | null>(null);
   const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
   const [latestSupabaseCheckIn, setLatestSupabaseCheckIn] =
     useState<ConsultationCheckInResult | null>(null);
@@ -181,6 +183,12 @@ export default function ReceptionPage() {
         }
 
         setSupabaseQueueItems(queue);
+        setSelectedSupabaseQueueItem((currentSelected) =>
+          currentSelected &&
+          queue.some((item) => item.id === currentSelected.id)
+            ? currentSelected
+            : null
+        );
         setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
       } catch (error) {
         if (!isMounted) {
@@ -600,6 +608,12 @@ export default function ReceptionPage() {
           );
 
         setSupabaseQueueItems(queue);
+        setSelectedSupabaseQueueItem((currentSelected) =>
+          currentSelected &&
+          queue.some((item) => item.id === currentSelected.id)
+            ? currentSelected
+            : null
+        );
         setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
 
         if (existingCheckIn) {
@@ -844,25 +858,70 @@ export default function ReceptionPage() {
 
               {supabaseQueueItems.length > 0 && (
                 <div className="mt-4 grid gap-3">
-                  {supabaseQueueItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-xl border border-blue-100 bg-white p-3"
-                    >
-                      <p className="text-sm font-semibold text-slate-900">
-                        Token #{item.tokenNumber} · {item.patientName}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {item.uhid} · {item.age} yrs / {item.gender}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {item.visitType} · {item.status}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Paid ₹{item.amountPaid} · {item.paymentMode}
-                      </p>
-                    </div>
-                  ))}
+                  {supabaseQueueItems.map((item) => {
+                    const isSelected =
+                      selectedSupabaseQueueItem?.id === item.id;
+
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSelectedSupabaseQueueItem(item)}
+                        className={`rounded-xl border p-3 text-left transition ${
+                          isSelected
+                            ? "border-blue-500 bg-white ring-2 ring-blue-200"
+                            : "border-blue-100 bg-white hover:border-blue-400"
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-slate-900">
+                          Token #{item.tokenNumber} · {item.patientName}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {item.uhid} · {item.age} yrs / {item.gender}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {item.visitType} · {item.status}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Paid ₹{item.amountPaid} · {item.paymentMode}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {selectedSupabaseQueueItem && (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-medium text-emerald-700">
+                    Selected Supabase Queue Patient
+                  </p>
+
+                  <p className="mt-2 font-semibold text-slate-900">
+                    #{selectedSupabaseQueueItem.tokenNumber} ·{" "}
+                    {selectedSupabaseQueueItem.patientName}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-600">
+                    {selectedSupabaseQueueItem.uhid} ·{" "}
+                    {selectedSupabaseQueueItem.age} yrs /{" "}
+                    {selectedSupabaseQueueItem.gender}
+                  </p>
+
+                  <p className="mt-1 text-sm text-slate-600">
+                    {selectedSupabaseQueueItem.visitType} ·{" "}
+                    {selectedSupabaseQueueItem.status}
+                  </p>
+
+                  <p className="mt-2 text-sm text-slate-700">
+                    Original consult paid: ₹
+                    {selectedSupabaseQueueItem.amountPaid} ·{" "}
+                    {selectedSupabaseQueueItem.paymentMode}
+                  </p>
+
+                  <p className="mt-3 text-xs text-emerald-700">
+                    Database queue selection is active. Local queue actions are still separate during migration.
+                  </p>
                 </div>
               )}
             </div>

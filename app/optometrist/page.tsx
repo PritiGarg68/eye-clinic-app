@@ -8,7 +8,10 @@ import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
-import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
+import {
+  fetchTodayQueueFromSupabase,
+  updateVisitStatusInSupabase,
+} from "../../lib/queueDb";
 import {
   OptometristWorkup,
   QueueItem,
@@ -143,10 +146,12 @@ export default function OptometristPage() {
     useState<QueueItem | null>(null);
   const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
 
+  const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
+
   const isReadOnly =
-    selectedQueueItem?.status === "Under Consultation" ||
-    selectedQueueItem?.status === "Completed";
-    const isFormDisabled = !selectedQueueItem || isReadOnly;
+    activeQueueItem?.status === "Under Consultation" ||
+    activeQueueItem?.status === "Completed";
+  const isFormDisabled = !activeQueueItem || isReadOnly;
 
   async function loadSupabaseOptometristQueue() {
     setSupabaseQueueStatus("Loading Supabase optometrist queue...");
@@ -197,12 +202,13 @@ export default function OptometristPage() {
   }
 
   useEffect(() => {
-    setWorkup(normalizeWorkup(selectedQueueItem?.optometristWorkup));
+    setWorkup(normalizeWorkup(activeQueueItem?.optometristWorkup));
     setWorkupSaved(false);
     setStatusMessage("");
-  }, [selectedQueueItem?.id, selectedQueueItem?.optometristWorkup]);
+  }, [activeQueueItem?.id, activeQueueItem?.optometristWorkup]);
 
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
+    setSelectedSupabaseQueueItem(null);
     selectQueueItem(item);
   }
 
@@ -264,24 +270,57 @@ export default function OptometristPage() {
     setWorkupSaved(false);
   }
 
-  function handleStartWorkup() {
-    if (!selectedQueueItem) {
+  async function handleStartWorkup() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    if (selectedQueueItem.status === "Completed") {
+    if (activeQueueItem.status === "Completed") {
       alert("This consultation is already completed.");
       return;
     }
 
-    if (selectedQueueItem.status === "Under Consultation") {
+    if (activeQueueItem.status === "Under Consultation") {
       alert("This patient is already under doctor consultation.");
       return;
     }
 
-    updateQueueItemStatus(selectedQueueItem.id, "Under Optometry");
-    setStatusMessage("Status updated to Under Optometry.");
+    if (selectedSupabaseQueueItem) {
+      try {
+        await updateVisitStatusInSupabase(
+          selectedSupabaseQueueItem.id,
+          "Under Optometry"
+        );
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Under Optometry" as const,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item
+          )
+        );
+        setStatusMessage("Supabase status updated to Under Optometry.");
+        await loadSupabaseOptometristQueue();
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not update Supabase status."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      updateQueueItemStatus(selectedQueueItem.id, "Under Optometry");
+      setStatusMessage("Status updated to Under Optometry.");
+    }
   }
 
   function handleMarkDilated() {
@@ -466,31 +505,31 @@ export default function OptometristPage() {
           className="lg:col-span-2"
         >
           <div className="grid gap-4">
-            {selectedQueueItem ? (
+            {activeQueueItem ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-medium text-emerald-700">
                   Selected Patient
                 </p>
 
                 <p className="mt-2 text-lg font-semibold text-slate-900">
-                  #{selectedQueueItem.tokenNumber} ·{" "}
-                  {selectedQueueItem.patientName}
+                  #{activeQueueItem.tokenNumber} ·{" "}
+                  {activeQueueItem.patientName}
                 </p>
 
                 <p className="text-sm text-slate-600">
-                  {selectedQueueItem.age} yrs / {selectedQueueItem.gender}
+                  {activeQueueItem.age} yrs / {activeQueueItem.gender}
                 </p>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  {selectedQueueItem.uhid}
+                  {activeQueueItem.uhid}
                 </p>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  {selectedQueueItem.visitType}
+                  {activeQueueItem.visitType}
                 </p>
 
                 <p className="mt-2 inline-flex rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                  Status: {selectedQueueItem.status}
+                  Status: {activeQueueItem.status}
                 </p>
               </div>
             ) : (

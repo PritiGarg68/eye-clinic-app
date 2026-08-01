@@ -10,6 +10,7 @@ type SupabaseVisitType =
 type SupabaseVisitStatus =
   | "Waiting"
   | "Under Optometry"
+  | "Needs Optometry Review"
   | "Dilated Waiting"
   | "Ready for Doctor"
   | "Under Consultation"
@@ -162,4 +163,25 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
       additionalServices: [],
     };
   });
+}
+
+export async function updateVisitStatusInSupabase(
+  visitId: string,
+  status: QueueStatus
+) {
+  const { error } = await supabase
+    .from("visits")
+    .update({
+      status,
+      clinical_started_at:
+        status === "Under Optometry" || status === "Under Consultation"
+          ? new Date().toISOString()
+          : undefined,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", visitId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }

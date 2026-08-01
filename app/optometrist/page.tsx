@@ -16,6 +16,7 @@ import {
   fetchOptometristWorkupFromSupabase,
   saveOptometristWorkupToSupabase,
 } from "../../lib/optometristWorkupDb";
+import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import {
   OptometristWorkup,
   QueueItem,
@@ -150,6 +151,8 @@ export default function OptometristPage() {
   const [selectedSupabaseQueueItem, setSelectedSupabaseQueueItem] =
     useState<QueueItem | null>(null);
   const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
+  const [historyTemplateChips, setHistoryTemplateChips] =
+    useState<string[]>(historyQuickChips);
 
   const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
 
@@ -194,6 +197,25 @@ export default function OptometristPage() {
 
   useEffect(() => {
     loadSupabaseOptometristQueue();
+  }, []);
+
+  useEffect(() => {
+    async function loadHistoryTemplates() {
+      try {
+        const templates = await fetchClinicalTemplatesFromSupabase("History");
+        const chips = templates
+          .map((template) => template.text)
+          .filter(Boolean);
+
+        if (chips.length > 0) {
+          setHistoryTemplateChips(chips);
+        }
+      } catch (error) {
+        console.error("Could not load Supabase history templates", error);
+      }
+    }
+
+    void loadHistoryTemplates();
   }, []);
 
   async function handleSelectSupabaseQueuePatient(item: QueueItem) {
@@ -843,7 +865,7 @@ export default function OptometristPage() {
               />
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {historyQuickChips.map((chip) => (
+                {historyTemplateChips.map((chip) => (
                   <button
                     key={chip}
                     type="button"

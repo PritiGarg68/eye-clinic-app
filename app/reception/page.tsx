@@ -148,6 +148,11 @@ export default function ReceptionPage() {
   const pendingAdditionalService =
     getPendingAdditionalService(selectedQueueItem);
 
+  const selectedPatientActiveSupabaseQueueItem =
+    selectedPatient && isSupabasePatient(selectedPatient)
+      ? supabaseQueueItems.find((item) => item.uhid === selectedPatient.uhid)
+      : null;
+
   useEffect(() => {
     let isMounted = true;
 
@@ -1448,6 +1453,13 @@ export default function ReceptionPage() {
                         ? "Consultation fee can be edited before clinical work starts."
                         : "Original consultation payment is locked because clinical work has already started."}
                     </p>
+
+                    {selectedPatientActiveSupabaseQueueItem && (
+                      <p className="mt-2 text-xs font-medium text-emerald-700">
+                        This patient is already in today's Supabase queue as token #
+                        {selectedPatientActiveSupabaseQueueItem.tokenNumber}.
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -1459,21 +1471,15 @@ export default function ReceptionPage() {
                         Save Corrections
                       </button>
                     ) : (
-                      <>
-                        <button
-                          onClick={handleGenerateReceipt}
-                          className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
-                        >
-                          Local Test Only
-                        </button>
-
-                        <button
-                          onClick={handleGenerateSupabaseReceipt}
-                          className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
-                        >
-                          Generate Receipt & Send to Queue
-                        </button>
-                      </>
+                      <button
+                        onClick={handleGenerateSupabaseReceipt}
+                        disabled={Boolean(selectedPatientActiveSupabaseQueueItem)}
+                        className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                      >
+                        {selectedPatientActiveSupabaseQueueItem
+                          ? "Already in Today's Queue"
+                          : "Generate Receipt & Send to Queue"}
+                      </button>
                     )}
 
                     <button
@@ -1490,6 +1496,23 @@ export default function ReceptionPage() {
                       Print Receipt
                     </button>
                   </div>
+
+                  {!queueItemBeingEdited && (
+                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                        Development fallback
+                      </p>
+                      <p className="mt-1 text-xs text-amber-700">
+                        Use only if we need to compare against the old local browser queue during migration.
+                      </p>
+                      <button
+                        onClick={handleGenerateReceipt}
+                        className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                      >
+                        Local Test Only
+                      </button>
+                    </div>
+                  )}
 
                   {supabaseCheckInStatus && (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">

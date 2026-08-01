@@ -304,7 +304,18 @@ export default function ReceptionPage() {
         gender: editablePatientDetails.gender,
         createdAt: new Date().toISOString(),
       }
-    : selectedPatient;
+    : selectedPatient ||
+      (selectedSupabaseQueueItem
+        ? {
+            id: selectedSupabaseQueueItem.patientId || selectedSupabaseQueueItem.id,
+            uhid: selectedSupabaseQueueItem.uhid,
+            mobile: selectedSupabaseQueueItem.mobile || "",
+            name: selectedSupabaseQueueItem.patientName,
+            age: selectedSupabaseQueueItem.age,
+            gender: selectedSupabaseQueueItem.gender,
+            createdAt: new Date().toISOString(),
+          }
+        : null);
 
   function mapReceptionVisitTypeToSupabase(
     currentVisitType: VisitType
@@ -819,6 +830,59 @@ export default function ReceptionPage() {
     }, 150);
   }
 
+  function handleReprintSupabaseConsultationReceipt() {
+    if (!selectedSupabaseQueueItem) {
+      alert("Please select a Supabase queue patient first.");
+      return;
+    }
+
+    if (!selectedSupabaseQueueItem.consultationReceiptNumber) {
+      alert("No consultation receipt number found for this queue patient.");
+      return;
+    }
+
+    setSelectedPatient(null);
+    setShowRegistrationForm(false);
+    setVisitType(selectedSupabaseQueueItem.visitType);
+    setPaymentMode(selectedSupabaseQueueItem.paymentMode);
+    setConsultationFee(
+      String(
+        selectedSupabaseQueueItem.consultationGrossAmount ??
+          selectedSupabaseQueueItem.amountPaid
+      )
+    );
+    setDiscountAmount(
+      String(selectedSupabaseQueueItem.consultationDiscountAmount ?? 0)
+    );
+    setLatestSupabaseCheckIn({
+      visitId: selectedSupabaseQueueItem.id,
+      patientId:
+        selectedSupabaseQueueItem.patientId || selectedSupabaseQueueItem.id,
+      visitDate: new Date().toISOString().slice(0, 10),
+      tokenNumber: selectedSupabaseQueueItem.tokenNumber,
+      visitType: mapReceptionVisitTypeToSupabase(
+        selectedSupabaseQueueItem.visitType
+      ),
+      status: "Waiting",
+      paymentId: "",
+      receiptNumber: selectedSupabaseQueueItem.consultationReceiptNumber,
+      grossAmount:
+        selectedSupabaseQueueItem.consultationGrossAmount ??
+        selectedSupabaseQueueItem.amountPaid,
+      discountAmount:
+        selectedSupabaseQueueItem.consultationDiscountAmount ?? 0,
+      netAmount:
+        selectedSupabaseQueueItem.consultationNetAmount ??
+        selectedSupabaseQueueItem.amountPaid,
+      paymentMode: mapReceptionPaymentModeToSupabase(
+        selectedSupabaseQueueItem.paymentMode
+      ),
+      paidAt: new Date().toISOString(),
+    });
+    setReceiptGenerated(true);
+    setShowReceiptPreview(true);
+  }
+
   function handleCollectAdditionalPaymentAndPrint(
     serviceRequestId: string
   ) {
@@ -1041,6 +1105,15 @@ export default function ReceptionPage() {
                   <p className="mt-3 text-xs text-emerald-700">
                     Database queue selection is active. Local queue actions are still separate during migration.
                   </p>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      onClick={handleReprintSupabaseConsultationReceipt}
+                      className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
+                    >
+                      Reprint Consultation Receipt
+                    </button>
+                  </div>
 
                   {selectedSupabaseQueueItem.status === "Waiting" ? (
                     <button

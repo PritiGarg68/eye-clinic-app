@@ -50,6 +50,8 @@ type QueueVisitRow = {
   payments:
     | {
         payment_mode: SupabasePaymentMode;
+        gross_amount: number | string;
+        discount_amount: number | string;
         net_amount: number | string;
         payment_type: string;
         payment_status: string;
@@ -111,6 +113,8 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
         ),
         payments (
           payment_mode,
+          gross_amount,
+          discount_amount,
           net_amount,
           payment_type,
           payment_status,
@@ -148,6 +152,12 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
       visitType: mapVisitType(visit.visit_type),
       paymentMode: mapPaymentMode(consultationPayment?.payment_mode || "None"),
       amountPaid: Number(consultationPayment?.net_amount || 0),
+      consultationReceiptNumber: consultationPayment?.receipt_number,
+      consultationGrossAmount: Number(consultationPayment?.gross_amount || 0),
+      consultationDiscountAmount: Number(
+        consultationPayment?.discount_amount || 0
+      ),
+      consultationNetAmount: Number(consultationPayment?.net_amount || 0),
       status: mapStatus(visit.status),
       additionalServices: [],
     };

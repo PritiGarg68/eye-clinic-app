@@ -114,6 +114,10 @@ export type QueueItem = {
   visitType: VisitType;
   paymentMode: PaymentMode;
   amountPaid: number;
+  consultationReceiptNumber?: string;
+  consultationGrossAmount?: number;
+  consultationDiscountAmount?: number;
+  consultationNetAmount?: number;
   status: QueueStatus;
   optometristWorkup?: OptometristWorkup;
   doctorConsultation?: DoctorConsultation;

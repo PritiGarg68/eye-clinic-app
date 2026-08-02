@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Patient } from "../../types/patients";
 import { OptometristWorkup, QueueItem } from "../../types/queue";
 import VisionTable from "./VisionTable";
+import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 
 type DoctorWorkupOverridePanelProps = {
   patient: QueueItem | null;
@@ -13,8 +14,8 @@ type DoctorWorkupOverridePanelProps = {
     patientName: string,
     age: number,
     gender: Patient["gender"]
-  ) => void;
-  onSaveWorkup: (workup: OptometristWorkup) => void;
+  ) => void | Promise<void>;
+  onSaveWorkup: (workup: OptometristWorkup) => void | Promise<void>;
   onEditModeChange?: (isEditing: boolean) => void;
 };
 
@@ -88,6 +89,27 @@ export default function DoctorWorkupOverridePanel({
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<Patient["gender"]>("Male");
   const [workup, setWorkup] = useState<OptometristWorkup>(emptyWorkup);
+  const [historyTemplateChips, setHistoryTemplateChips] =
+    useState<string[]>(historyQuickChips);
+
+  useEffect(() => {
+    async function loadHistoryTemplates() {
+      try {
+        const templates = await fetchClinicalTemplatesFromSupabase("History");
+        const chips = templates
+          .map((template) => template.text)
+          .filter(Boolean);
+
+        if (chips.length > 0) {
+          setHistoryTemplateChips(chips);
+        }
+      } catch (error) {
+        console.error("Could not load Supabase history templates", error);
+      }
+    }
+
+    void loadHistoryTemplates();
+  }, []);
 
   useEffect(() => {
     if (!patient) {
@@ -139,14 +161,14 @@ export default function DoctorWorkupOverridePanel({
     }));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!patientName.trim() || !age) {
       alert("Please enter patient name and age.");
       return;
     }
 
-    onSavePatientDetails(patientName.trim(), Number(age), gender);
-    onSaveWorkup(workup);
+    await onSaveWorkup(workup);
+    await onSavePatientDetails(patientName.trim(), Number(age), gender);
     setIsEditing(false);
     onEditModeChange?.(false);
   }
@@ -385,7 +407,7 @@ export default function DoctorWorkupOverridePanel({
               />
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {historyQuickChips.map((chip) => (
+                {historyTemplateChips.map((chip) => (
                   <button
                     key={chip}
                     type="button"

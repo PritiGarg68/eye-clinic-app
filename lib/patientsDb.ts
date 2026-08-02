@@ -107,3 +107,34 @@ export async function createPatientInSupabase(
 
   return mapPatientRow(data as PatientRow);
 }
+
+export type UpdatePatientInput = {
+  patientId: string;
+  fullName: string;
+  ageYears: number;
+  gender: "Male" | "Female" | "Other";
+};
+
+export async function updatePatientInSupabase(
+  input: UpdatePatientInput
+): Promise<SupabasePatient> {
+  const { data, error } = await supabase
+    .from("patients")
+    .update({
+      full_name: input.fullName.trim(),
+      age_years: input.ageYears,
+      gender: input.gender,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.patientId)
+    .select(
+      "id, uhid, full_name, mobile, age_years, date_of_birth, gender, address, patient_source_id, referral_notes, created_at"
+    )
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return mapPatientRow(data as PatientRow);
+}

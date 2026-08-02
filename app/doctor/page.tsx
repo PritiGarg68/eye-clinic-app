@@ -18,8 +18,13 @@ import {
   fetchTodayQueueFromSupabase,
   updateVisitStatusInSupabase,
 } from "../../lib/queueDb";
-import { fetchOptometristWorkupFromSupabase } from "../../lib/optometristWorkupDb";
+import {
+  fetchOptometristWorkupFromSupabase,
+  saveOptometristWorkupToSupabase,
+} from "../../lib/optometristWorkupDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
+import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
+import { updatePatientInSupabase } from "../../lib/patientsDb";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { Patient } from "../../types/patients";
 import {
@@ -253,6 +258,12 @@ export default function DoctorPage() {
     useState<QueueItem | null>(null);
   const [supabaseDoctorQueueStatus, setSupabaseDoctorQueueStatus] =
     useState("");
+  const [findingTemplateChips, setFindingTemplateChips] =
+    useState<string[]>(findingQuickChips);
+  const [diagnosisTemplateChips, setDiagnosisTemplateChips] =
+    useState<string[]>(diagnosisQuickChips);
+  const [adviceTemplateChips, setAdviceTemplateChips] =
+    useState<string[]>(adviceQuickChips);
 
   const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
 
@@ -320,6 +331,45 @@ export default function DoctorPage() {
 
   useEffect(() => {
     void loadSupabaseDoctorQueue();
+  }, []);
+
+  useEffect(() => {
+    async function loadDoctorTemplates() {
+      try {
+        const [findingTemplates, diagnosisTemplates, adviceTemplates] =
+          await Promise.all([
+            fetchClinicalTemplatesFromSupabase("Finding"),
+            fetchClinicalTemplatesFromSupabase("Diagnosis"),
+            fetchClinicalTemplatesFromSupabase("Advice"),
+          ]);
+
+        const findingChips = findingTemplates
+          .map((template) => template.text)
+          .filter(Boolean);
+        const diagnosisChips = diagnosisTemplates
+          .map((template) => template.text)
+          .filter(Boolean);
+        const adviceChips = adviceTemplates
+          .map((template) => template.text)
+          .filter(Boolean);
+
+        if (findingChips.length > 0) {
+          setFindingTemplateChips(findingChips);
+        }
+
+        if (diagnosisChips.length > 0) {
+          setDiagnosisTemplateChips(diagnosisChips);
+        }
+
+        if (adviceChips.length > 0) {
+          setAdviceTemplateChips(adviceChips);
+        }
+      } catch (error) {
+        console.error("Could not load Supabase doctor templates", error);
+      }
+    }
+
+    void loadDoctorTemplates();
   }, []);
 
   useEffect(() => {
@@ -598,34 +648,166 @@ export default function DoctorPage() {
     }
   }
 
-  function handleSavePatientDetailsFromDoctor(
+  async function handleSavePatientDetailsFromDoctor(
     patientName: string,
     age: number,
     gender: Patient["gender"]
   ) {
-    if (!selectedQueueItem) {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    updateQueueItemPatientDetails(
-      selectedQueueItem.id,
-      patientName,
-      age,
-      gender
-    );
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
 
-    setStatusMessage("Patient details corrected by doctor/admin.");
+      try {
+        await updatePatientInSupabase({
+          patientId: selectedSupabaseQueueItem.patientId,
+          fullName: patientName,
+          ageYears: age,
+          gender,
+        });
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          patientName,
+          age,
+          gender,
+        };
+
+        setSelectedSupabaseQueueItem((current) => {
+          if (!current || current.id !== updatedItem.id) {
+            return updatedItem;
+          }
+
+          return {
+            ...current,
+            patientName,
+            age,
+            gender,
+          };
+        });
+
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id
+              ? {
+                  ...item,
+                  patientName,
+                  age,
+                  gender,
+                  optometristWorkup:
+                    item.optometristWorkup || updatedItem.optometristWorkup,
+                  doctorConsultation:
+                    item.doctorConsultation || updatedItem.doctorConsultation,
+                }
+              : item
+          )
+        );
+
+        setStatusMessage("Supabase patient details corrected by doctor/admin.");
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not update Supabase patient details."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      updateQueueItemPatientDetails(
+        selectedQueueItem.id,
+        patientName,
+        age,
+        gender
+      );
+
+      setStatusMessage("Patient details corrected by doctor/admin.");
+    }
   }
 
-  function handleSaveWorkupFromDoctor(workup: OptometristWorkup) {
-    if (!selectedQueueItem) {
+  async function handleSaveWorkupFromDoctor(workup: OptometristWorkup) {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveOptometristWorkup(selectedQueueItem.id, workup);
-    setStatusMessage("Workup details updated by doctor/admin.");
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        await saveOptometristWorkupToSupabase({
+          visitId: selectedSupabaseQueueItem.id,
+          patientId: selectedSupabaseQueueItem.patientId,
+          workup,
+        });
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          optometristWorkup: workup,
+        };
+
+        setSelectedSupabaseQueueItem((current) => {
+          if (!current || current.id !== selectedSupabaseQueueItem.id) {
+            return updatedItem;
+          }
+
+          return {
+            ...current,
+            optometristWorkup: workup,
+          };
+        });
+
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === selectedSupabaseQueueItem.id
+              ? {
+                  ...item,
+                  optometristWorkup: workup,
+                }
+              : item
+          )
+        );
+
+        setConsultation((current) => {
+          const hasDoctorFinalSpectacleAdvice = hasSpectacleAdviceValues(
+            current.finalSpectacleAdvice
+          );
+
+          return {
+            ...current,
+            finalSpectacleAdvice: hasDoctorFinalSpectacleAdvice
+              ? current.finalSpectacleAdvice
+              : normalizeSpectacleAdvice(workup.spectacleDraft),
+          };
+        });
+
+        setStatusMessage("Supabase workup details updated by doctor/admin.");
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not update Supabase workup details."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveOptometristWorkup(selectedQueueItem.id, workup);
+      setStatusMessage("Workup details updated by doctor/admin.");
+    }
   }
 
   function handleSendBackToOptometrist() {
@@ -1010,7 +1192,7 @@ export default function DoctorPage() {
                 />
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {findingQuickChips.map((chip) => (
+                  {findingTemplateChips.map((chip) => (
                     <button
                       key={chip}
                       type="button"
@@ -1042,7 +1224,7 @@ export default function DoctorPage() {
                 />
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {diagnosisQuickChips.map((chip) => (
+                  {diagnosisTemplateChips.map((chip) => (
                     <button
                       key={chip}
                       type="button"
@@ -1137,7 +1319,7 @@ export default function DoctorPage() {
                 />
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {adviceQuickChips.map((chip) => (
+                  {adviceTemplateChips.map((chip) => (
                     <button
                       key={chip}
                       type="button"

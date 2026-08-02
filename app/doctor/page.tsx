@@ -14,6 +14,11 @@ import DoctorWorkupOverridePanel from "../components/DoctorWorkupOverridePanel";
 import AdditionalServiceRequestPanel from "../components/AdditionalServiceRequestPanel";
 import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
+import {
+  fetchTodayQueueFromSupabase,
+  updateVisitStatusInSupabase,
+} from "../../lib/queueDb";
+import { fetchOptometristWorkupFromSupabase } from "../../lib/optometristWorkupDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { Patient } from "../../types/patients";
@@ -22,6 +27,8 @@ import {
   DoctorConsultation,
   MedicineRow,
   OptometristWorkup,
+  QueueItem,
+  QueueStatus,
   SpectacleAdvice,
   SpectacleDraftRow,
 } from "../../types/queue";
@@ -50,6 +57,62 @@ const emptyConsultation: DoctorConsultation = {
   notes: "",
   finalSpectacleAdvice: emptySpectacleAdvice,
 };
+
+const emptyOptometristWorkup: OptometristWorkup = {
+  chiefComplaint: "",
+  vision: {
+    unaided: {
+      distanceOD: "",
+      distanceOS: "",
+      nearOD: "",
+      nearOS: "",
+    },
+    withGlasses: {
+      distanceOD: "",
+      distanceOS: "",
+      nearOD: "",
+      nearOS: "",
+    },
+    withPinHole: {
+      distanceOD: "",
+      distanceOS: "",
+      nearOD: "",
+      nearOS: "",
+    },
+  },
+  refractionRight: "",
+  refractionLeft: "",
+  iopRight: "",
+  iopLeft: "",
+  dilationStatus: "Not Done",
+  dilationNotes: "",
+  optometristNotes: "",
+  spectacleDraft: emptySpectacleAdvice,
+};
+
+function normalizeOptometristWorkupForDoctor(
+  savedWorkup?: Partial<OptometristWorkup> | null
+): OptometristWorkup {
+  return {
+    ...emptyOptometristWorkup,
+    ...savedWorkup,
+    vision: {
+      unaided: {
+        ...emptyOptometristWorkup.vision.unaided,
+        ...savedWorkup?.vision?.unaided,
+      },
+      withGlasses: {
+        ...emptyOptometristWorkup.vision.withGlasses,
+        ...savedWorkup?.vision?.withGlasses,
+      },
+      withPinHole: {
+        ...emptyOptometristWorkup.vision.withPinHole,
+        ...savedWorkup?.vision?.withPinHole,
+      },
+    },
+    spectacleDraft: normalizeSpectacleAdvice(savedWorkup?.spectacleDraft),
+  };
+}
 
 function normalizeSpectacleAdvice(
   savedAdvice?: Partial<SpectacleAdvice>
@@ -147,6 +210,15 @@ function appendText(existingText: string, textToAdd: string) {
   return `${trimmedExisting}\n${textToAdd}`;
 }
 
+const doctorRelevantStatuses: QueueStatus[] = [
+  "Ready for Doctor",
+  "Under Consultation",
+];
+
+function isDoctorRelevantQueueItem(item: QueueItem) {
+  return doctorRelevantStatuses.includes(item.status);
+}
+
 export default function DoctorPage() {
   const [activeClinicSettings, setActiveClinicSettings] =
     useState(clinicSettings);
@@ -174,28 +246,87 @@ export default function DoctorPage() {
   const [consultation, setConsultation] =
     useState<DoctorConsultation>(emptyConsultation);
   const [isEditingPatientWorkup, setIsEditingPatientWorkup] = useState(false);
+  const [supabaseDoctorQueueItems, setSupabaseDoctorQueueItems] = useState<
+    QueueItem[]
+  >([]);
+  const [selectedSupabaseQueueItem, setSelectedSupabaseQueueItem] =
+    useState<QueueItem | null>(null);
+  const [supabaseDoctorQueueStatus, setSupabaseDoctorQueueStatus] =
+    useState("");
+
+  const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
 
   const canSendBackToOptometrist =
-    selectedQueueItem?.status === "Under Consultation";
+    activeQueueItem?.status === "Under Consultation";
 
   const pendingAdditionalService =
-    getPendingAdditionalService(selectedQueueItem);
+    getPendingAdditionalService(activeQueueItem);
 
   const finalSpectacleAdvice =
     consultation.finalSpectacleAdvice || emptySpectacleAdvice;
 
-  const patientForPrescription = selectedQueueItem
+  const patientForPrescription = activeQueueItem
     ? {
-        ...selectedQueueItem,
+        ...activeQueueItem,
         doctorConsultation: consultation,
       }
     : null;
 
+  async function loadSupabaseDoctorQueue() {
+    setSupabaseDoctorQueueStatus("Loading Supabase doctor queue...");
+
+    try {
+      const queue = await fetchTodayQueueFromSupabase();
+      const doctorQueue = sortQueueForRole(
+        queue.filter(isDoctorRelevantQueueItem),
+        "doctor"
+      );
+
+      setSupabaseDoctorQueueItems(doctorQueue);
+
+      setSelectedSupabaseQueueItem((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const refreshedItem = doctorQueue.find((item) => item.id === current.id);
+
+        if (!refreshedItem) {
+          return current;
+        }
+
+        return {
+          ...refreshedItem,
+          optometristWorkup:
+            current.optometristWorkup || refreshedItem.optometristWorkup,
+          doctorConsultation:
+            current.doctorConsultation || refreshedItem.doctorConsultation,
+        };
+      });
+
+      setSupabaseDoctorQueueStatus(
+        doctorQueue.length
+          ? `Loaded ${doctorQueue.length} Supabase doctor queue patient(s).`
+          : "No Supabase patients are Ready for Doctor yet."
+      );
+    } catch (error) {
+      setSupabaseDoctorQueueStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not load Supabase doctor queue."
+      );
+    }
+  }
+
+  useEffect(() => {
+    void loadSupabaseDoctorQueue();
+  }, []);
+
   useEffect(() => {
     setConsultation(
       normalizeConsultation(
-        selectedQueueItem?.doctorConsultation,
-        selectedQueueItem?.optometristWorkup?.spectacleDraft
+        activeQueueItem?.doctorConsultation,
+        activeQueueItem?.optometristWorkup?.spectacleDraft
       )
     );
 
@@ -207,7 +338,7 @@ export default function DoctorPage() {
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
     setIsEditingPatientWorkup(false);
-  }, [selectedQueueItem?.id]);
+  }, [activeQueueItem?.id]);
 
   useEffect(() => {
     function handleAfterPrint() {
@@ -223,6 +354,7 @@ export default function DoctorPage() {
   }, []);
 
   function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
+    setSelectedSupabaseQueueItem(null);
     selectQueueItem(item);
     setStatusMessage("");
     setConsultationSaved(false);
@@ -232,6 +364,55 @@ export default function DoctorPage() {
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
     setIsEditingPatientWorkup(false);
+  }
+
+  async function handleSelectSupabaseQueuePatient(item: QueueItem) {
+    setSelectedSupabaseQueueItem(item);
+    selectQueueItem(null);
+    setStatusMessage(`Selected Supabase patient #${item.tokenNumber}.`);
+    setConsultationSaved(false);
+    setShowPrescriptionPreview(false);
+    setShowAdditionalServicePanel(false);
+    setAdditionalServiceMessage("");
+    setIsPrintingPrescription(false);
+    setIsPrintingSpectacleAdvice(false);
+    setIsEditingPatientWorkup(false);
+
+    try {
+      const savedWorkup = await fetchOptometristWorkupFromSupabase(item.id);
+
+      if (savedWorkup) {
+        const normalizedWorkup =
+          normalizeOptometristWorkupForDoctor(savedWorkup);
+
+        const updatedItem = {
+          ...item,
+          optometristWorkup: normalizedWorkup,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((queueItem) =>
+            queueItem.id === updatedItem.id ? updatedItem : queueItem
+          )
+        );
+        setConsultation(
+          normalizeConsultation(
+            item.doctorConsultation,
+            normalizedWorkup.spectacleDraft
+          )
+        );
+        setStatusMessage(
+          `Loaded Supabase optometrist workup for token #${item.tokenNumber}.`
+        );
+      }
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not load Supabase optometrist workup."
+      );
+    }
   }
 
   function updateConsultationField<K extends keyof DoctorConsultation>(
@@ -342,13 +523,13 @@ export default function DoctorPage() {
     setShowPrescriptionPreview(false);
   }
 
-  function handleStartConsultation() {
-    if (!selectedQueueItem) {
+  async function handleStartConsultation() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    if (selectedQueueItem.status === "Completed") {
+    if (activeQueueItem.status === "Completed") {
       const shouldReopen = window.confirm(
         "This consultation is already completed. Do you still want to reopen it?"
       );
@@ -356,21 +537,16 @@ export default function DoctorPage() {
       if (!shouldReopen) {
         return;
       }
-
-      updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
-      setStatusMessage("Completed consultation reopened.");
-      setShowPrescriptionPreview(false);
-      return;
     }
 
-    if (selectedQueueItem.status === "Under Consultation") {
+    if (activeQueueItem.status === "Under Consultation") {
       setStatusMessage("Consultation is already active.");
       return;
     }
 
-    if (selectedQueueItem.status !== "Ready for Doctor") {
+    if (activeQueueItem.status !== "Ready for Doctor") {
       const shouldOverride = window.confirm(
-        `This patient is currently marked as "${selectedQueueItem.status}", not "Ready for Doctor". Do you still want to start consultation?`
+        `This patient is currently marked as "${activeQueueItem.status}", not "Ready for Doctor". Do you still want to start consultation?`
       );
 
       if (!shouldOverride) {
@@ -378,9 +554,48 @@ export default function DoctorPage() {
       }
     }
 
-    updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
-    setStatusMessage("Consultation started.");
-    setShowPrescriptionPreview(false);
+    if (selectedSupabaseQueueItem) {
+      try {
+        await updateVisitStatusInSupabase(
+          selectedSupabaseQueueItem.id,
+          "Under Consultation"
+        );
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Under Consultation" as const,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item
+          )
+        );
+
+        setStatusMessage("Supabase consultation started.");
+        setShowPrescriptionPreview(false);
+        await loadSupabaseDoctorQueue();
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not start Supabase consultation."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
+      setStatusMessage(
+        activeQueueItem.status === "Completed"
+          ? "Completed consultation reopened."
+          : "Consultation started."
+      );
+      setShowPrescriptionPreview(false);
+    }
   }
 
   function handleSavePatientDetailsFromDoctor(
@@ -685,7 +900,24 @@ export default function DoctorPage() {
     >
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="grid gap-6 lg:col-span-1">
-          <SectionCard title="Live Queue" subtitle="Patients waiting for doctor">
+          <SectionCard
+            title="Supabase Doctor Queue"
+            subtitle="Ready for Doctor / Under Consultation"
+          >
+            {supabaseDoctorQueueStatus && (
+              <p className="mb-3 text-xs font-medium text-slate-500">
+                {supabaseDoctorQueueStatus}
+              </p>
+            )}
+
+            <QueuePanel
+              items={supabaseDoctorQueueItems}
+              selectedItemId={selectedSupabaseQueueItem?.id}
+              onSelectItem={handleSelectSupabaseQueuePatient}
+            />
+          </SectionCard>
+
+          <SectionCard title="Local Queue" subtitle="Temporary local fallback">
             <QueuePanel
               items={sortQueueForRole(queueItems, "doctor")}
               selectedItemId={selectedQueueItem?.id}
@@ -694,27 +926,27 @@ export default function DoctorPage() {
           </SectionCard>
 
           <SectionCard title="Patient Snapshot" subtitle="Current patient context">
-            {selectedQueueItem ? (
+            {activeQueueItem ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-medium text-emerald-700">
                   Selected Patient
                 </p>
 
                 <p className="mt-2 font-semibold text-slate-900">
-                  #{selectedQueueItem.tokenNumber} ·{" "}
-                  {selectedQueueItem.patientName}
+                  #{activeQueueItem.tokenNumber} ·{" "}
+                  {activeQueueItem.patientName}
                 </p>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  {selectedQueueItem.age} yrs / {selectedQueueItem.gender}
+                  {activeQueueItem.age} yrs / {activeQueueItem.gender}
                 </p>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  {selectedQueueItem.uhid}
+                  {activeQueueItem.uhid}
                 </p>
 
                 <p className="mt-2 inline-flex rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700">
-                  Status: {selectedQueueItem.status}
+                  Status: {activeQueueItem.status}
                 </p>
               </div>
             ) : (
@@ -725,7 +957,7 @@ export default function DoctorPage() {
           </SectionCard>
 
           <SectionCard title="History Timeline" subtitle="Previous visits">
-            <PatientHistoryPanel patient={selectedQueueItem} />
+            <PatientHistoryPanel patient={activeQueueItem} />
           </SectionCard>
         </div>
 
@@ -742,7 +974,7 @@ export default function DoctorPage() {
             )}
 
             <DoctorWorkupOverridePanel
-              patient={selectedQueueItem}
+              patient={activeQueueItem}
               canSendBackToOptometrist={canSendBackToOptometrist}
               onSendBackToOptometrist={handleSendBackToOptometrist}
               onSavePatientDetails={handleSavePatientDetailsFromDoctor}
@@ -750,7 +982,7 @@ export default function DoctorPage() {
               onEditModeChange={setIsEditingPatientWorkup}
             />
 
-            {!selectedQueueItem ? (
+            {!activeQueueItem ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-slate-800">
                   Select a patient before entering consultation details.

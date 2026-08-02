@@ -119,7 +119,7 @@ export default function DoctorWorkupOverridePanel({
 
     setIsEditing(false);
     onEditModeChange?.(false);
-  }, [patient?.id, onEditModeChange]);
+  }, [patient?.id, patient?.optometristWorkup, onEditModeChange]);
 
   if (!patient) {
     return (

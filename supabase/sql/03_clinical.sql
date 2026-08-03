@@ -75,6 +75,7 @@ create table if not exists public.doctor_consultations (
   findings text,
   diagnosis text,
   advice text,
+  notes text,
 
   follow_up_date date,
   free_follow_up_valid_until date,

@@ -25,6 +25,10 @@ import {
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
+import {
+  fetchDoctorConsultationFromSupabase,
+  saveDoctorConsultationDraftToSupabase,
+} from "../../lib/doctorConsultationDb";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { Patient } from "../../types/patients";
 import {
@@ -429,33 +433,36 @@ export default function DoctorPage() {
     setIsEditingPatientWorkup(false);
 
     try {
-      const savedWorkup = await fetchOptometristWorkupFromSupabase(item.id);
+      const [savedWorkup, savedConsultation] = await Promise.all([
+        fetchOptometristWorkupFromSupabase(item.id),
+        fetchDoctorConsultationFromSupabase(item.id),
+      ]);
 
-      if (savedWorkup) {
-        const normalizedWorkup =
-          normalizeOptometristWorkupForDoctor(savedWorkup);
+      const normalizedWorkup = normalizeOptometristWorkupForDoctor(savedWorkup);
 
-        const updatedItem = {
-          ...item,
-          optometristWorkup: normalizedWorkup,
-        };
+      const updatedItem = {
+        ...item,
+        optometristWorkup: normalizedWorkup,
+        doctorConsultation: savedConsultation || undefined,
+      };
 
-        setSelectedSupabaseQueueItem(updatedItem);
-        setSupabaseDoctorQueueItems((current) =>
-          current.map((queueItem) =>
-            queueItem.id === updatedItem.id ? updatedItem : queueItem
-          )
-        );
-        setConsultation(
-          normalizeConsultation(
-            item.doctorConsultation,
-            normalizedWorkup.spectacleDraft
-          )
-        );
-        setStatusMessage(
-          `Loaded Supabase optometrist workup for token #${item.tokenNumber}.`
-        );
-      }
+      setSelectedSupabaseQueueItem(updatedItem);
+      setSupabaseDoctorQueueItems((current) =>
+        current.map((queueItem) =>
+          queueItem.id === updatedItem.id ? updatedItem : queueItem
+        )
+      );
+      setConsultation(
+        normalizeConsultation(
+          savedConsultation || item.doctorConsultation,
+          normalizedWorkup.spectacleDraft
+        )
+      );
+      setStatusMessage(
+        savedConsultation
+          ? `Loaded Supabase consultation draft for token #${item.tokenNumber}.`
+          : `Loaded Supabase optometrist workup for token #${item.tokenNumber}.`
+      );
     } catch (error) {
       setStatusMessage(
         error instanceof Error
@@ -841,15 +848,78 @@ export default function DoctorPage() {
     setShowPrescriptionPreview(false);
   }
 
-  function handleSaveConsultationDraft() {
-    if (!selectedQueueItem) {
+  async function handleSaveConsultationDraft() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
-    setConsultationSaved(true);
-    setStatusMessage("Consultation draft saved.");
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
+
+        const consultationWithCurrentMedicines = {
+          ...savedConsultation,
+          medicines: consultation.medicines,
+        };
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          doctorConsultation: consultationWithCurrentMedicines,
+        };
+
+        setSelectedSupabaseQueueItem((current) => {
+          if (!current || current.id !== updatedItem.id) {
+            return updatedItem;
+          }
+
+          return {
+            ...current,
+            doctorConsultation: consultationWithCurrentMedicines,
+          };
+        });
+
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id
+              ? {
+                  ...item,
+                  doctorConsultation: consultationWithCurrentMedicines,
+                }
+              : item
+          )
+        );
+
+        setConsultation(consultationWithCurrentMedicines);
+        setConsultationSaved(true);
+        setStatusMessage("Supabase consultation draft saved.");
+      } catch (error) {
+        setConsultationSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not save Supabase consultation draft."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+      setConsultationSaved(true);
+      setStatusMessage("Consultation draft saved.");
+    }
   }
 
   function handleCompleteConsultation() {
@@ -1400,7 +1470,7 @@ export default function DoctorPage() {
 
             {consultationSaved && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-                Consultation draft saved for selected patient.
+                {statusMessage || "Consultation draft saved for selected patient."}
               </div>
             )}
 

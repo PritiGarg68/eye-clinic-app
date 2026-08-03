@@ -144,7 +144,7 @@ create table if not exists public.consultation_medicines (
   updated_at timestamptz not null default now(),
 
   constraint consultation_medicines_eye_check
-    check (eye is null or eye in ('OD', 'OS', 'OU', 'Both Eyes', 'Right Eye', 'Left Eye')),
+    check (eye is null or eye in ('OD', 'OS', 'OU', 'Both Eyes', 'Right Eye', 'Left Eye', 'Oral', 'Other')),
 
   constraint consultation_medicines_sort_order_check
     check (sort_order > 0)

@@ -1,4 +1,8 @@
-import { DoctorConsultation, SpectacleAdvice } from "../types/queue";
+import {
+  DoctorConsultation,
+  MedicineRow,
+  SpectacleAdvice,
+} from "../types/queue";
 import { supabase } from "./supabaseClient";
 
 type DoctorConsultationStatus = "Draft" | "Completed" | "Cancelled";
@@ -16,6 +20,22 @@ type DoctorConsultationRow = {
   status: DoctorConsultationStatus;
   started_at: string | null;
   completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ConsultationMedicineRow = {
+  id: string;
+  consultation_id: string;
+  visit_id: string;
+  patient_id: string;
+  medicine_id: string | null;
+  medicine_name_snapshot: string;
+  eye: MedicineRow["eye"] | null;
+  frequency: string | null;
+  duration: string | null;
+  instructions: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 };
@@ -73,8 +93,24 @@ function normalizeSpectacleAdvice(
   };
 }
 
+function mapMedicinesFromDatabase(
+  medicineRows: ConsultationMedicineRow[]
+): MedicineRow[] {
+  return medicineRows
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((row) => ({
+      id: row.id,
+      medicineName: row.medicine_name_snapshot || "",
+      eye: row.eye || "Both Eyes",
+      frequency: row.frequency || "",
+      duration: row.duration || "",
+      instructions: row.instructions || "",
+    }));
+}
+
 function mapDoctorConsultationFromDatabase(input: {
   consultation: DoctorConsultationRow;
+  medicines: ConsultationMedicineRow[];
   spectaclePrescription?: SpectaclePrescriptionRow | null;
 }): DoctorConsultation {
   const spectacleJson =
@@ -87,7 +123,7 @@ function mapDoctorConsultationFromDatabase(input: {
   return {
     findings: input.consultation.findings || "",
     diagnosis: input.consultation.diagnosis || "",
-    medicines: [],
+    medicines: mapMedicinesFromDatabase(input.medicines),
     advice: input.consultation.advice || "",
     followUpDate: input.consultation.follow_up_date || "",
     freeFollowUpValidUntil:
@@ -149,6 +185,40 @@ export async function saveDoctorConsultationDraftToSupabase(input: {
     throw new Error(consultationError.message);
   }
 
+  const { error: deleteMedicinesError } = await supabase
+    .from("consultation_medicines")
+    .delete()
+    .eq("visit_id", input.visitId);
+
+  if (deleteMedicinesError) {
+    throw new Error(deleteMedicinesError.message);
+  }
+
+  const medicineRows = input.consultation.medicines
+    .map((medicine, index) => ({
+      consultation_id: consultationRow.id,
+      visit_id: input.visitId,
+      patient_id: input.patientId,
+      medicine_name_snapshot: medicine.medicineName.trim(),
+      eye: medicine.eye || null,
+      frequency: blankToNull(medicine.frequency),
+      duration: blankToNull(medicine.duration),
+      instructions: blankToNull(medicine.instructions),
+      sort_order: index + 1,
+      updated_at: now,
+    }))
+    .filter((medicine) => medicine.medicine_name_snapshot);
+
+  if (medicineRows.length > 0) {
+    const { error: insertMedicinesError } = await supabase
+      .from("consultation_medicines")
+      .insert(medicineRows);
+
+    if (insertMedicinesError) {
+      throw new Error(insertMedicinesError.message);
+    }
+  }
+
   const finalSpectacleAdvice = input.consultation.finalSpectacleAdvice;
 
   if (hasSpectacleAdviceValues(finalSpectacleAdvice)) {
@@ -201,6 +271,18 @@ export async function fetchDoctorConsultationFromSupabase(
     return null;
   }
 
+  const { data: medicineRows, error: medicinesError } = await supabase
+    .from("consultation_medicines")
+    .select(
+      "id, consultation_id, visit_id, patient_id, medicine_id, medicine_name_snapshot, eye, frequency, duration, instructions, sort_order, created_at, updated_at"
+    )
+    .eq("visit_id", visitId)
+    .order("sort_order", { ascending: true });
+
+  if (medicinesError) {
+    throw new Error(medicinesError.message);
+  }
+
   const { data: spectacleRow, error: spectacleError } = await supabase
     .from("spectacle_prescriptions")
     .select(
@@ -215,6 +297,7 @@ export async function fetchDoctorConsultationFromSupabase(
 
   return mapDoctorConsultationFromDatabase({
     consultation: consultationRow,
+    medicines: medicineRows || [],
     spectaclePrescription: spectacleRow,
   });
 }

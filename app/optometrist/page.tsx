@@ -18,6 +18,10 @@ import {
 } from "../../lib/optometristWorkupDb";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import {
+  getAdditionalServiceNames,
+  getPaidAdditionalServices,
+} from "../../lib/additionalServiceUtils";
+import {
   OptometristWorkup,
   QueueItem,
   QueueStatus,
@@ -155,6 +159,10 @@ export default function OptometristPage() {
     useState<string[]>(historyQuickChips);
 
   const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
+  const paidAdditionalServices = getPaidAdditionalServices(activeQueueItem);
+  const hasOptometryReviewTask =
+    activeQueueItem?.status === "Needs Optometry Review" &&
+    paidAdditionalServices.length > 0;
 
   const isReadOnly =
     activeQueueItem?.status === "Under Consultation" ||
@@ -637,6 +645,20 @@ export default function OptometristPage() {
                     <p className="mt-1 text-xs text-slate-600">
                       {item.visitType} · {item.status}
                     </p>
+
+                    {item.status === "Needs Optometry Review" &&
+                      getPaidAdditionalServices(item).length > 0 && (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                            Tests to perform / review
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {getPaidAdditionalServices(item)
+                              .map((service) => getAdditionalServiceNames(service))
+                              .join(", ")}
+                          </p>
+                        </div>
+                      )}
                   </button>
                 ))}
               </div>
@@ -714,6 +736,45 @@ export default function OptometristPage() {
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
                   Select a patient from the queue to begin workup.
+                </p>
+              </div>
+            )}
+
+            {hasOptometryReviewTask && (
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-bold uppercase tracking-wide text-amber-800">
+                  Tests to perform / review before sending to Doctor
+                </p>
+
+                <div className="mt-3 grid gap-3">
+                  {paidAdditionalServices.map((service) => (
+                    <div
+                      key={service.id}
+                      className="rounded-xl border border-amber-200 bg-white p-3"
+                    >
+                      <p className="text-sm font-semibold text-slate-900">
+                        {getAdditionalServiceNames(service)}
+                      </p>
+
+                      <p className="mt-1 text-xs text-slate-600">
+                        Paid ₹{service.netAmount}
+                        {service.paymentMode ? ` · ${service.paymentMode}` : ""}
+                        {service.receiptNumber
+                          ? ` · Receipt ${service.receiptNumber}`
+                          : ""}
+                      </p>
+
+                      {service.notes && (
+                        <p className="mt-2 text-xs text-slate-700">
+                          Doctor note: {service.notes}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-sm font-medium text-amber-900">
+                  Complete/update the relevant test or workup details, then click Ready for Doctor.
                 </p>
               </div>
             )}

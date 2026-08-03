@@ -224,6 +224,7 @@ function appendText(existingText: string, textToAdd: string) {
 
 const doctorRelevantStatuses: QueueStatus[] = [
   "Ready for Doctor",
+  "Needs Optometry Review",
   "Under Consultation",
   "Additional Payment Pending",
   "Completed",

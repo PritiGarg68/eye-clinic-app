@@ -139,6 +139,16 @@ function appendText(existingText: string, textToAdd: string) {
   return `${trimmedExisting}\n${textToAdd}`;
 }
 
+const doctorSendBackReviewNote =
+  "Sent back by doctor for additional optometry review.";
+
+function hasDoctorSendBackReviewNote(item: QueueItem | null | undefined) {
+  return Boolean(
+    item?.optometristWorkup?.optometristNotes?.includes(doctorSendBackReviewNote)
+  );
+}
+
+
 export default function OptometristPage() {
   const {
     queueItems,
@@ -160,9 +170,14 @@ export default function OptometristPage() {
 
   const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
   const paidAdditionalServices = getPaidAdditionalServices(activeQueueItem);
+  const hasDoctorSendBackReview =
+    activeQueueItem?.status === "Needs Optometry Review" &&
+    (hasDoctorSendBackReviewNote(activeQueueItem) ||
+      workup.optometristNotes.includes(doctorSendBackReviewNote));
   const hasOptometryReviewTask =
     activeQueueItem?.status === "Needs Optometry Review" &&
-    paidAdditionalServices.length > 0;
+    paidAdditionalServices.length > 0 &&
+    !hasDoctorSendBackReview;
 
   const isReadOnly =
     activeQueueItem?.status === "Under Consultation" ||
@@ -647,6 +662,29 @@ export default function OptometristPage() {
                     </p>
 
                     {item.status === "Needs Optometry Review" &&
+                      (hasDoctorSendBackReviewNote(item) ||
+                        (selectedSupabaseQueueItem?.id === item.id &&
+                          workup.optometristNotes.includes(
+                            doctorSendBackReviewNote
+                          ))) && (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                            Doctor requested review
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            Additional optometry review requested
+                          </p>
+                        </div>
+                      )}
+
+                    {item.status === "Needs Optometry Review" &&
+                      !hasDoctorSendBackReviewNote(item) &&
+                      !(
+                        selectedSupabaseQueueItem?.id === item.id &&
+                        workup.optometristNotes.includes(
+                          doctorSendBackReviewNote
+                        )
+                      ) &&
                       getPaidAdditionalServices(item).length > 0 && (
                         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                           <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
@@ -736,6 +774,20 @@ export default function OptometristPage() {
                 </p>
                 <p className="mt-1 text-sm text-slate-500">
                   Select a patient from the queue to begin workup.
+                </p>
+              </div>
+            )}
+
+            {hasDoctorSendBackReview && (
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-bold uppercase tracking-wide text-amber-800">
+                  Doctor requested additional optometry review
+                </p>
+                <p className="mt-2 text-sm text-amber-900">
+                  Review or update the workup as needed, then click Ready for Doctor.
+                </p>
+                <p className="mt-2 text-xs text-amber-800">
+                  Earlier paid tests remain part of the visit record, but they are not shown here as fresh pending tasks.
                 </p>
               </div>
             )}

@@ -59,6 +59,43 @@ const emptySpectacleAdvice: SpectacleAdvice = {
   remarks: "",
 };
 
+const emptyWorkup: OptometristWorkup = {
+  chiefComplaint: "",
+  vision: {
+    unaided: {
+      distanceOD: "",
+      distanceOS: "",
+      nearOD: "",
+      nearOS: "",
+    },
+    withGlasses: {
+      distanceOD: "",
+      distanceOS: "",
+      nearOD: "",
+      nearOS: "",
+    },
+    withPinHole: {
+      distanceOD: "",
+      distanceOS: "",
+      nearOD: "",
+      nearOS: "",
+    },
+  },
+  refractionRight: "",
+  refractionLeft: "",
+  iopRight: "",
+  iopLeft: "",
+  dilationStatus: "Not Done",
+  dilationNotes: "",
+  optometristNotes: "",
+  spectacleDraft: {
+    od: { ...emptySpectacleRow },
+    os: { ...emptySpectacleRow },
+    add: { ...emptySpectacleRow },
+    remarks: "",
+  },
+};
+
 const emptyConsultation: DoctorConsultation = {
   findings: "",
   diagnosis: "",
@@ -225,6 +262,7 @@ function appendText(existingText: string, textToAdd: string) {
 const doctorRelevantStatuses: QueueStatus[] = [
   "Ready for Doctor",
   "Needs Optometry Review",
+  "Dilated Waiting",
   "Under Consultation",
   "Additional Payment Pending",
   "Completed",
@@ -874,21 +912,25 @@ export default function DoctorPage() {
     }
   }
 
-  function handleSendBackToOptometrist() {
-    if (!selectedQueueItem) {
+  async function handleSendBackToOptometrist() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    if (selectedQueueItem.status === "Completed") {
+    if (activeQueueItem.status === "Completed") {
       alert(
         "This consultation is already completed. Reopen it first if changes are needed."
       );
       return;
     }
 
-    if (selectedQueueItem.status !== "Under Consultation") {
-      alert("Patient can be sent back only after consultation has started.");
+    if (
+      activeQueueItem.status !== "Under Consultation" &&
+      activeQueueItem.status !== "Ready for Doctor" &&
+      activeQueueItem.status !== "Needs Optometry Review"
+    ) {
+      alert("Patient can be sent back only after reaching the doctor workflow.");
       return;
     }
 
@@ -900,9 +942,81 @@ export default function DoctorPage() {
       return;
     }
 
-    updateQueueItemStatus(selectedQueueItem.id, "Needs Optometry Review");
-    setStatusMessage("Patient sent back to optometrist for additional workup.");
-    setShowPrescriptionPreview(false);
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
+
+        const existingWorkup =
+          selectedSupabaseQueueItem.optometristWorkup || emptyWorkup;
+
+        const updatedWorkup: OptometristWorkup = {
+          ...existingWorkup,
+          optometristNotes: existingWorkup.optometristNotes
+            ? `${existingWorkup.optometristNotes}\nSent back by doctor for additional optometry review.`
+            : "Sent back by doctor for additional optometry review.",
+        };
+
+        await saveOptometristWorkupToSupabase({
+          visitId: selectedSupabaseQueueItem.id,
+          patientId: selectedSupabaseQueueItem.patientId,
+          workup: updatedWorkup,
+        });
+
+        await updateVisitStatusInSupabase(
+          selectedSupabaseQueueItem.id,
+          "Needs Optometry Review"
+        );
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Needs Optometry Review" as const,
+          optometristWorkup: updatedWorkup,
+          doctorConsultation: savedConsultation,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          sortDoctorQueueWithCompletedLast(
+            current.map((item) =>
+              item.id === updatedItem.id ? updatedItem : item
+            )
+          )
+        );
+
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setShowPrescriptionPreview(false);
+        setStatusMessage(
+          "Patient sent back to optometrist for additional workup."
+        );
+        await loadSupabaseDoctorQueue();
+      } catch (error) {
+        setConsultationSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not send patient back to optometrist."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      updateQueueItemStatus(selectedQueueItem.id, "Needs Optometry Review");
+      setStatusMessage("Patient sent back to optometrist for additional workup.");
+      setShowPrescriptionPreview(false);
+    }
   }
 
   async function handleSaveConsultationDraft() {
@@ -1205,13 +1319,13 @@ export default function DoctorPage() {
     }, 100);
   }
 
-  function handleSendForDilation() {
-    if (!selectedQueueItem) {
+  async function handleSendForDilation() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    if (selectedQueueItem.status === "Completed") {
+    if (activeQueueItem.status === "Completed") {
       alert(
         "This consultation is already completed. Reopen it first if changes are needed."
       );
@@ -1226,78 +1340,99 @@ export default function DoctorPage() {
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
 
-    const blankWorkup: OptometristWorkup = {
-      chiefComplaint: "",
-      vision: {
-        unaided: {
-          distanceOD: "",
-          distanceOS: "",
-          nearOD: "",
-          nearOS: "",
-        },
-        withGlasses: {
-          distanceOD: "",
-          distanceOS: "",
-          nearOD: "",
-          nearOS: "",
-        },
-        withPinHole: {
-          distanceOD: "",
-          distanceOS: "",
-          nearOD: "",
-          nearOS: "",
-        },
-      },
-      refractionRight: "",
-      refractionLeft: "",
-      iopRight: "",
-      iopLeft: "",
-      dilationStatus: "Not Done",
-      dilationNotes: "",
-      optometristNotes: "",
-      spectacleDraft: {
-        od: {
-          sph: "",
-          cyl: "",
-          axis: "",
-          vision: "",
-        },
-        os: {
-          sph: "",
-          cyl: "",
-          axis: "",
-          vision: "",
-        },
-        add: {
-          sph: "",
-          cyl: "",
-          axis: "",
-          vision: "",
-        },
-        remarks: "",
-      },
-    };
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
 
-    const existingWorkup = selectedQueueItem.optometristWorkup || blankWorkup;
+        const existingWorkup =
+          selectedSupabaseQueueItem.optometristWorkup || emptyWorkup;
 
-    const updatedWorkup: OptometristWorkup = {
-      ...existingWorkup,
-      dilationStatus: "Waiting",
-      dilationNotes: existingWorkup.dilationNotes
-        ? `${existingWorkup.dilationNotes}\nSent for dilation by doctor.`
-        : "Sent for dilation by doctor.",
-    };
+        const updatedWorkup: OptometristWorkup = {
+          ...existingWorkup,
+          dilationStatus: "Waiting",
+          dilationNotes: existingWorkup.dilationNotes
+            ? `${existingWorkup.dilationNotes}\nSent for dilation by doctor.`
+            : "Sent for dilation by doctor.",
+        };
 
-    saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
-    updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
+        await saveOptometristWorkupToSupabase({
+          visitId: selectedSupabaseQueueItem.id,
+          patientId: selectedSupabaseQueueItem.patientId,
+          workup: updatedWorkup,
+        });
 
-    setConsultationSaved(true);
-    setShowPrescriptionPreview(false);
-    setStatusMessage(
-      "Patient sent for dilation. Status changed to Dilated Waiting."
-    );
+        await updateVisitStatusInSupabase(
+          selectedSupabaseQueueItem.id,
+          "Dilated Waiting"
+        );
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Dilated Waiting" as const,
+          optometristWorkup: updatedWorkup,
+          doctorConsultation: savedConsultation,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          sortDoctorQueueWithCompletedLast(
+            current.map((item) =>
+              item.id === updatedItem.id ? updatedItem : item
+            )
+          )
+        );
+
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setShowPrescriptionPreview(false);
+        setStatusMessage(
+          "Patient sent for dilation. Optometrist can mark dilation done."
+        );
+        await loadSupabaseDoctorQueue();
+      } catch (error) {
+        setConsultationSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not send patient for dilation."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+
+      const existingWorkup = selectedQueueItem.optometristWorkup || emptyWorkup;
+
+      const updatedWorkup: OptometristWorkup = {
+        ...existingWorkup,
+        dilationStatus: "Waiting",
+        dilationNotes: existingWorkup.dilationNotes
+          ? `${existingWorkup.dilationNotes}\nSent for dilation by doctor.`
+          : "Sent for dilation by doctor.",
+      };
+
+      saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
+      updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
+
+      setConsultationSaved(true);
+      setShowPrescriptionPreview(false);
+      setStatusMessage(
+        "Patient sent for dilation. Dilation status marked Waiting."
+      );
+    }
   }
 
   async function handleCreateAdditionalServiceRequest(

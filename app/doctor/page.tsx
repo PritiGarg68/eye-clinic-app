@@ -26,7 +26,9 @@ import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
 import {
+  completeDoctorConsultationInSupabase,
   fetchDoctorConsultationFromSupabase,
+  reopenDoctorConsultationInSupabase,
   saveDoctorConsultationDraftToSupabase,
 } from "../../lib/doctorConsultationDb";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
@@ -222,10 +224,25 @@ function appendText(existingText: string, textToAdd: string) {
 const doctorRelevantStatuses: QueueStatus[] = [
   "Ready for Doctor",
   "Under Consultation",
+  "Completed",
 ];
 
 function isDoctorRelevantQueueItem(item: QueueItem) {
   return doctorRelevantStatuses.includes(item.status);
+}
+
+function sortDoctorQueueWithCompletedLast(items: QueueItem[]) {
+  return [...items].sort((a, b) => {
+    if (a.status === "Completed" && b.status !== "Completed") {
+      return 1;
+    }
+
+    if (a.status !== "Completed" && b.status === "Completed") {
+      return -1;
+    }
+
+    return a.tokenNumber - b.tokenNumber;
+  });
 }
 
 export default function DoctorPage() {
@@ -292,9 +309,8 @@ export default function DoctorPage() {
 
     try {
       const queue = await fetchTodayQueueFromSupabase();
-      const doctorQueue = sortQueueForRole(
-        queue.filter(isDoctorRelevantQueueItem),
-        "doctor"
+      const doctorQueue = sortDoctorQueueWithCompletedLast(
+        sortQueueForRole(queue.filter(isDoctorRelevantQueueItem), "doctor")
       );
 
       setSupabaseDoctorQueueItems(doctorQueue);
@@ -588,12 +604,54 @@ export default function DoctorPage() {
 
     if (activeQueueItem.status === "Completed") {
       const shouldReopen = window.confirm(
-        "This consultation is already completed. Do you still want to reopen it?"
+        "This consultation is already completed. Do you want to reopen it for editing/advice?"
       );
 
       if (!shouldReopen) {
         return;
       }
+
+      if (selectedSupabaseQueueItem) {
+        try {
+          await reopenDoctorConsultationInSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+          });
+
+          const updatedItem = {
+            ...selectedSupabaseQueueItem,
+            status: "Under Consultation" as const,
+          };
+
+          setSelectedSupabaseQueueItem(updatedItem);
+          setSupabaseDoctorQueueItems((current) =>
+            sortDoctorQueueWithCompletedLast(
+              current.map((item) =>
+                item.id === updatedItem.id ? updatedItem : item
+              )
+            )
+          );
+
+          setStatusMessage("Supabase completed consultation reopened.");
+          setShowPrescriptionPreview(false);
+          await loadSupabaseDoctorQueue();
+        } catch (error) {
+          setStatusMessage(
+            error instanceof Error
+              ? error.message
+              : "Could not reopen Supabase consultation."
+          );
+        }
+
+        return;
+      }
+
+      if (selectedQueueItem) {
+        updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
+        setStatusMessage("Completed consultation reopened.");
+        setShowPrescriptionPreview(false);
+      }
+
+      return;
     }
 
     if (activeQueueItem.status === "Under Consultation") {
@@ -646,11 +704,7 @@ export default function DoctorPage() {
 
     if (selectedQueueItem) {
       updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
-      setStatusMessage(
-        activeQueueItem.status === "Completed"
-          ? "Completed consultation reopened."
-          : "Consultation started."
-      );
+      setStatusMessage("Consultation started.");
       setShowPrescriptionPreview(false);
     }
   }
@@ -922,17 +976,75 @@ export default function DoctorPage() {
     }
   }
 
-  function handleCompleteConsultation() {
-    if (!selectedQueueItem) {
+  async function handleCompleteConsultation() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
-    updateQueueItemStatus(selectedQueueItem.id, "Completed");
-    setConsultationSaved(true);
-    setStatusMessage("Consultation completed.");
-    setShowPrescriptionPreview(false);
+    const shouldComplete = window.confirm(
+      "Complete this consultation? It will move to Completed Today, and can be reopened if needed."
+    );
+
+    if (!shouldComplete) {
+      return;
+    }
+
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        const savedConsultation =
+          await completeDoctorConsultationInSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Completed" as const,
+          doctorConsultation: savedConsultation,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          sortDoctorQueueWithCompletedLast(
+            current.map((item) =>
+              item.id === updatedItem.id ? updatedItem : item
+            )
+          )
+        );
+
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setStatusMessage(
+          "Supabase consultation completed. Patient moved to Completed Today."
+        );
+        setShowPrescriptionPreview(false);
+        await loadSupabaseDoctorQueue();
+      } catch (error) {
+        setConsultationSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not complete Supabase consultation."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+      updateQueueItemStatus(selectedQueueItem.id, "Completed");
+      setConsultationSaved(true);
+      setStatusMessage("Consultation completed.");
+      setShowPrescriptionPreview(false);
+    }
   }
 
   async function handlePreviewPrescription() {
@@ -1263,7 +1375,7 @@ export default function DoctorPage() {
         <div className="grid gap-6 lg:col-span-1">
           <SectionCard
             title="Supabase Doctor Queue"
-            subtitle="Ready for Doctor / Under Consultation"
+            subtitle="Active patients first, completed today at bottom"
           >
             {supabaseDoctorQueueStatus && (
               <p className="mb-3 text-xs font-medium text-slate-500">

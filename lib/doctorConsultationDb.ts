@@ -139,6 +139,78 @@ function mapDoctorConsultationFromDatabase(input: {
   };
 }
 
+export async function completeDoctorConsultationInSupabase(input: {
+  visitId: string;
+  patientId: string;
+  consultation: DoctorConsultation;
+}): Promise<DoctorConsultation> {
+  const saved = await saveDoctorConsultationDraftToSupabase(input);
+  const now = new Date().toISOString();
+
+  const { error: consultationError } = await supabase
+    .from("doctor_consultations")
+    .update({
+      status: "Completed",
+      completed_at: now,
+      updated_at: now,
+    })
+    .eq("visit_id", input.visitId);
+
+  if (consultationError) {
+    throw new Error(consultationError.message);
+  }
+
+  const { error: visitError } = await supabase
+    .from("visits")
+    .update({
+      status: "Completed",
+      updated_at: now,
+    })
+    .eq("id", input.visitId);
+
+  if (visitError) {
+    throw new Error(visitError.message);
+  }
+
+  return {
+    ...saved,
+    updatedAt: now,
+  };
+}
+
+export async function reopenDoctorConsultationInSupabase(input: {
+  visitId: string;
+}): Promise<void> {
+  const now = new Date().toISOString();
+
+  const { error: consultationError } = await supabase
+    .from("doctor_consultations")
+    .update({
+      status: "Draft",
+      completed_at: null,
+      started_at: now,
+      updated_at: now,
+    })
+    .eq("visit_id", input.visitId);
+
+  if (consultationError) {
+    throw new Error(consultationError.message);
+  }
+
+  const { error: visitError } = await supabase
+    .from("visits")
+    .update({
+      status: "Under Consultation",
+      clinical_started_at: now,
+      updated_at: now,
+    })
+    .eq("id", input.visitId);
+
+  if (visitError) {
+    throw new Error(visitError.message);
+  }
+}
+
 export async function saveDoctorConsultationDraftToSupabase(input: {
   visitId: string;
   patientId: string;

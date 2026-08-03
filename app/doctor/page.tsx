@@ -23,6 +23,7 @@ import {
   saveOptometristWorkupToSupabase,
 } from "../../lib/optometristWorkupDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
+import { createOrUpdatePendingAdditionalServiceRequestInSupabase } from "../../lib/additionalServiceRequestDb";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
 import {
@@ -224,6 +225,7 @@ function appendText(existingText: string, textToAdd: string) {
 const doctorRelevantStatuses: QueueStatus[] = [
   "Ready for Doctor",
   "Under Consultation",
+  "Additional Payment Pending",
   "Completed",
 ];
 
@@ -1186,7 +1188,7 @@ export default function DoctorPage() {
   }
 
   function handleOpenAdditionalServicePanel() {
-    if (!selectedQueueItem) {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
@@ -1297,34 +1299,110 @@ export default function DoctorPage() {
     );
   }
 
-  function handleCreateAdditionalServiceRequest(
+  async function handleCreateAdditionalServiceRequest(
     serviceRequest: AdditionalServiceRequest
   ) {
-    if (!selectedQueueItem) {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
 
-    addOrReplacePendingAdditionalServiceRequest(
-      selectedQueueItem.id,
-      serviceRequest
-    );
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
 
-    setConsultationSaved(true);
-    setShowPrescriptionPreview(false);
+        const savedRequest =
+          await createOrUpdatePendingAdditionalServiceRequestInSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            serviceRequest,
+          });
 
-    const serviceNames = serviceRequest.services
-      .map((service) => service.serviceName)
-      .join(", ");
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          status: "Additional Payment Pending" as const,
+          doctorConsultation: savedConsultation,
+          additionalServices: [
+            ...(selectedSupabaseQueueItem.additionalServices || []).filter(
+              (request) => request.status !== "Payment Pending"
+            ),
+            savedRequest,
+          ],
+        };
 
-    const message = pendingAdditionalService
-      ? `Pending request updated: ${serviceNames}. Revised amount to collect: ₹${serviceRequest.netAmount}.`
-      : `${serviceNames} sent to reception. Amount to collect: ₹${serviceRequest.netAmount}.`;
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          sortDoctorQueueWithCompletedLast(
+            current.map((item) =>
+              item.id === updatedItem.id ? updatedItem : item
+            )
+          )
+        );
 
-    setAdditionalServiceMessage(message);
-    setStatusMessage(message);
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setShowPrescriptionPreview(false);
+        setShowAdditionalServicePanel(false);
+
+        const serviceNames = savedRequest.services
+          .map((service) => service.serviceName)
+          .join(", ");
+
+        const message = `${serviceNames} sent to reception. Amount to collect: ₹${savedRequest.netAmount}.`;
+
+        setAdditionalServiceMessage(message);
+        setStatusMessage(message);
+        await loadSupabaseDoctorQueue();
+      } catch (error) {
+        setConsultationSaved(false);
+        setAdditionalServiceMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not send additional service request to reception."
+        );
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not send additional service request to reception."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+
+      addOrReplacePendingAdditionalServiceRequest(
+        selectedQueueItem.id,
+        serviceRequest
+      );
+
+      setConsultationSaved(true);
+      setShowPrescriptionPreview(false);
+      setShowAdditionalServicePanel(false);
+
+      const serviceNames = serviceRequest.services
+        .map((service) => service.serviceName)
+        .join(", ");
+
+      const message = pendingAdditionalService
+        ? `Pending request updated: ${serviceNames}. Revised amount to collect: ₹${serviceRequest.netAmount}.`
+        : `${serviceNames} sent to reception. Amount to collect: ₹${serviceRequest.netAmount}.`;
+
+      setAdditionalServiceMessage(message);
+      setStatusMessage(message);
+    }
   }
 
   function handlePrintSpectacleAdvice() {

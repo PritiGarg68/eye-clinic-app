@@ -1,4 +1,11 @@
-import { QueueItem, VisitType, QueueStatus, PaymentMode } from "../types/queue";
+import {
+  AdditionalServiceRequest,
+  AdditionalServiceRoute,
+  QueueItem,
+  VisitType,
+  QueueStatus,
+  PaymentMode,
+} from "../types/queue";
 import { supabase } from "./supabaseClient";
 
 type SupabaseVisitType =
@@ -59,6 +66,28 @@ type QueueVisitRow = {
         receipt_number: string;
       }[]
     | null;
+  additional_service_requests:
+    | AdditionalServiceRequestRow[]
+    | null;
+};
+
+type AdditionalServiceRequestRow = {
+  id: string;
+  status: "Payment Pending" | "Paid" | "Cancelled";
+  gross_amount: number | string;
+  discount_amount: number | string;
+  net_amount: number | string;
+  notes: string | null;
+  route_after_payment: AdditionalServiceRoute;
+  paid_at: string | null;
+  created_at: string;
+  additional_service_request_items:
+    | {
+        service_name_snapshot: string;
+        amount: number | string;
+        sort_order: number;
+      }[]
+    | null;
 };
 
 function mapVisitType(visitType: SupabaseVisitType): VisitType {
@@ -93,6 +122,31 @@ function mapPaymentMode(paymentMode: SupabasePaymentMode): PaymentMode {
   return paymentMode;
 }
 
+function mapAdditionalServiceRequests(
+  requests: AdditionalServiceRequestRow[] | null | undefined
+): AdditionalServiceRequest[] {
+  return (requests || [])
+    .filter((request) => request.status !== "Cancelled")
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((request) => ({
+      id: request.id,
+      services: (request.additional_service_request_items || [])
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((item) => ({
+          serviceName: item.service_name_snapshot,
+          amount: Number(item.amount || 0),
+        })),
+      grossAmount: Number(request.gross_amount || 0),
+      discount: Number(request.discount_amount || 0),
+      netAmount: Number(request.net_amount || 0),
+      notes: request.notes || "",
+      status: request.status === "Paid" ? "Paid" : "Payment Pending",
+      routeAfterPayment: request.route_after_payment,
+      createdAt: request.created_at,
+      paidAt: request.paid_at || undefined,
+    }));
+}
+
 export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -120,6 +174,22 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
           payment_type,
           payment_status,
           receipt_number
+        ),
+        additional_service_requests (
+          id,
+          status,
+          gross_amount,
+          discount_amount,
+          net_amount,
+          notes,
+          route_after_payment,
+          paid_at,
+          created_at,
+          additional_service_request_items (
+            service_name_snapshot,
+            amount,
+            sort_order
+          )
         )
       `
     )
@@ -160,7 +230,9 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
       ),
       consultationNetAmount: Number(consultationPayment?.net_amount || 0),
       status: mapStatus(visit.status),
-      additionalServices: [],
+      additionalServices: mapAdditionalServiceRequests(
+        visit.additional_service_requests
+      ),
     };
   });
 }
@@ -169,16 +241,22 @@ export async function updateVisitStatusInSupabase(
   visitId: string,
   status: QueueStatus
 ) {
+  const updatePayload: {
+    status: QueueStatus;
+    updated_at: string;
+    clinical_started_at?: string;
+  } = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (status === "Under Optometry" || status === "Under Consultation") {
+    updatePayload.clinical_started_at = new Date().toISOString();
+  }
+
   const { error } = await supabase
     .from("visits")
-    .update({
-      status,
-      clinical_started_at:
-        status === "Under Optometry" || status === "Under Consultation"
-          ? new Date().toISOString()
-          : undefined,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq("id", visitId);
 
   if (error) {

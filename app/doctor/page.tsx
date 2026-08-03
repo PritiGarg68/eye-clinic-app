@@ -935,33 +935,142 @@ export default function DoctorPage() {
     setShowPrescriptionPreview(false);
   }
 
-  function handlePreviewPrescription() {
-    if (!selectedQueueItem) {
+  async function handlePreviewPrescription() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
-    setConsultationSaved(true);
-    setShowPrescriptionPreview(true);
-    setStatusMessage("Prescription preview generated.");
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
+
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
+
+        setSelectedSupabaseQueueItem((current) =>
+          current && current.id === selectedSupabaseQueueItem.id
+            ? {
+                ...current,
+                doctorConsultation: savedConsultation,
+              }
+            : current
+        );
+
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === selectedSupabaseQueueItem.id
+              ? {
+                  ...item,
+                  doctorConsultation: savedConsultation,
+                }
+              : item
+          )
+        );
+
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setShowPrescriptionPreview(true);
+        setStatusMessage("Prescription preview generated from Supabase-saved consultation.");
+      } catch (error) {
+        setConsultationSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not generate Supabase prescription preview."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+      setConsultationSaved(true);
+      setShowPrescriptionPreview(true);
+      setStatusMessage("Prescription preview generated.");
+    }
   }
 
-  function handlePrintPrescription() {
-    if (!selectedQueueItem) {
+  async function handlePrintPrescription() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
-    setConsultationSaved(true);
-    setShowPrescriptionPreview(true);
-    setIsPrintingPrescription(true);
-    setStatusMessage("Prescription ready for printing.");
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
 
-    setTimeout(() => {
-      window.print();
-    }, 150);
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
+
+        setSelectedSupabaseQueueItem((current) =>
+          current && current.id === selectedSupabaseQueueItem.id
+            ? {
+                ...current,
+                doctorConsultation: savedConsultation,
+              }
+            : current
+        );
+
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === selectedSupabaseQueueItem.id
+              ? {
+                  ...item,
+                  doctorConsultation: savedConsultation,
+                }
+              : item
+          )
+        );
+
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setShowPrescriptionPreview(true);
+        setIsPrintingPrescription(true);
+        setStatusMessage("Prescription ready for printing from Supabase-saved consultation.");
+
+        setTimeout(() => {
+          window.print();
+        }, 150);
+      } catch (error) {
+        setConsultationSaved(false);
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not print Supabase prescription."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+      setConsultationSaved(true);
+      setShowPrescriptionPreview(true);
+      setIsPrintingPrescription(true);
+      setStatusMessage("Prescription ready for printing.");
+
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    }
   }
 
   function handleOpenAdditionalServicePanel() {

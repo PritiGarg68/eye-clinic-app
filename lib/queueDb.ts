@@ -57,6 +57,7 @@ type QueueVisitRow = {
     | null;
   payments:
     | {
+        id: string;
         payment_mode: SupabasePaymentMode;
         gross_amount: number | string;
         discount_amount: number | string;
@@ -64,6 +65,7 @@ type QueueVisitRow = {
         payment_type: string;
         payment_status: string;
         receipt_number: string;
+        paid_at: string | null;
       }[]
     | null;
   additional_service_requests:
@@ -80,6 +82,7 @@ type AdditionalServiceRequestRow = {
   notes: string | null;
   route_after_payment: AdditionalServiceRoute;
   paid_at: string | null;
+  linked_payment_id: string | null;
   created_at: string;
   additional_service_request_items:
     | {
@@ -123,12 +126,18 @@ function mapPaymentMode(paymentMode: SupabasePaymentMode): PaymentMode {
 }
 
 function mapAdditionalServiceRequests(
-  requests: AdditionalServiceRequestRow[] | null | undefined
+  requests: AdditionalServiceRequestRow[] | null | undefined,
+  payments: QueueVisitRow["payments"]
 ): AdditionalServiceRequest[] {
   return (requests || [])
     .filter((request) => request.status !== "Cancelled")
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    .map((request) => ({
+    .map((request) => {
+      const linkedPayment = payments?.find(
+        (payment) => payment.id === request.linked_payment_id
+      );
+
+      return {
       id: request.id,
       services: (request.additional_service_request_items || [])
         .sort((a, b) => a.sort_order - b.sort_order)
@@ -143,8 +152,13 @@ function mapAdditionalServiceRequests(
       status: request.status === "Paid" ? "Paid" : "Payment Pending",
       routeAfterPayment: request.route_after_payment,
       createdAt: request.created_at,
-      paidAt: request.paid_at || undefined,
-    }));
+      paidAt: request.paid_at || linkedPayment?.paid_at || undefined,
+      paymentMode: linkedPayment
+        ? mapPaymentMode(linkedPayment.payment_mode)
+        : undefined,
+      receiptNumber: linkedPayment?.receipt_number,
+    };
+    });
 }
 
 export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
@@ -167,13 +181,15 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
           gender
         ),
         payments (
+          id,
           payment_mode,
           gross_amount,
           discount_amount,
           net_amount,
           payment_type,
           payment_status,
-          receipt_number
+          receipt_number,
+          paid_at
         ),
         additional_service_requests (
           id,
@@ -184,6 +200,7 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
           notes,
           route_after_payment,
           paid_at,
+          linked_payment_id,
           created_at,
           additional_service_request_items (
             service_name_snapshot,
@@ -231,7 +248,8 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
       consultationNetAmount: Number(consultationPayment?.net_amount || 0),
       status: mapStatus(visit.status),
       additionalServices: mapAdditionalServiceRequests(
-        visit.additional_service_requests
+        visit.additional_service_requests,
+        visit.payments
       ),
     };
   });

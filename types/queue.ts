@@ -40,6 +40,7 @@ export type AdditionalServiceRoute =
     createdAt: string;
     paidAt?: string;
     paymentMode?: PaymentMode;
+    receiptNumber?: string;
   };
 
 export type VisionEntry = {

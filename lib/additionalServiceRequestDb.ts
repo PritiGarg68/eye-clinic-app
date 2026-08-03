@@ -179,3 +179,36 @@ export async function fetchAdditionalServiceRequestFromSupabase(
     items: items || [],
   });
 }
+
+type CollectAdditionalServicePaymentRow = {
+  request_id: string;
+  visit_id: string;
+  patient_id: string;
+  payment_id: string;
+  receipt_number: string;
+  gross_amount: number | string;
+  discount_amount: number | string;
+  net_amount: number | string;
+  payment_mode: "Cash" | "UPI" | "Card" | "Bank Transfer" | "None";
+  paid_at: string;
+  route_after_payment: AdditionalServiceRoute;
+  visit_status: string;
+};
+
+export async function collectAdditionalServicePaymentInSupabase(input: {
+  requestId: string;
+  paymentMode: "Cash" | "UPI" | "Card" | "Bank Transfer" | "None";
+}): Promise<CollectAdditionalServicePaymentRow> {
+  const { data, error } = await supabase
+    .rpc("collect_additional_service_payment", {
+      p_request_id: input.requestId,
+      p_payment_mode: input.paymentMode,
+    })
+    .single<CollectAdditionalServicePaymentRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
+}

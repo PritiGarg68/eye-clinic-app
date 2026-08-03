@@ -56,7 +56,8 @@ export default function AdditionalServiceReceiptPreview({
               Additional Receipt
             </p>
             <p className="mt-1 text-sm font-semibold text-slate-900">
-              TEMP-ADD-{Date.now().toString().slice(-6)}
+              {serviceRequest.receiptNumber ||
+                `TEMP-ADD-${Date.now().toString().slice(-6)}`}
             </p>
           </div>
         </div>

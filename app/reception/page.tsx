@@ -13,6 +13,7 @@ import { sortQueueForRole } from "../../lib/queueSorting";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
+import { collectAdditionalServicePaymentInSupabase } from "../../lib/additionalServiceRequestDb";
 import {
   SupabasePatient,
   createPatientInSupabase,
@@ -153,8 +154,11 @@ export default function ReceptionPage() {
   const canEditPayment =
     !queueItemBeingEdited || queueItemBeingEdited.status === "Waiting";
 
+  const activeReceptionQueueItem =
+    selectedSupabaseQueueItem || selectedQueueItem;
+
   const pendingAdditionalService =
-    getPendingAdditionalService(selectedQueueItem);
+    getPendingAdditionalService(activeReceptionQueueItem);
 
   const selectedPatientActiveSupabaseQueueItem =
     selectedPatient && isSupabasePatient(selectedPatient)
@@ -271,7 +275,7 @@ export default function ReceptionPage() {
   }, [searchTerm, showRegistrationForm, isEditingAnyQueueItem]);
 
   const paidAdditionalServices =
-    selectedQueueItem?.additionalServices?.filter(
+    activeReceptionQueueItem?.additionalServices?.filter(
       (service) => service.status === "Paid"
     ) || [];
 
@@ -883,25 +887,75 @@ export default function ReceptionPage() {
     setShowReceiptPreview(true);
   }
 
-  function handleCollectAdditionalPaymentAndPrint(
+  async function handleCollectAdditionalPaymentAndPrint(
     serviceRequestId: string
   ) {
-    if (!selectedQueueItem) {
+    const activeItem = selectedSupabaseQueueItem || selectedQueueItem;
+
+    if (!activeItem) {
       alert("Please select a payment-pending patient first.");
       return;
     }
 
-    const serviceToPrint = getPendingAdditionalService(selectedQueueItem);
+    const serviceToPrint = getPendingAdditionalService(activeItem);
 
     if (!serviceToPrint || serviceToPrint.id !== serviceRequestId) {
       alert("No pending additional payment found for this patient.");
       return;
     }
 
+    if (selectedSupabaseQueueItem) {
+      try {
+        const collectedPayment = await collectAdditionalServicePaymentInSupabase({
+          requestId: serviceRequestId,
+          paymentMode: additionalPaymentMode,
+        });
+
+        const paidService: AdditionalServiceRequest = {
+          ...serviceToPrint,
+          status: "Paid",
+          paidAt: collectedPayment.paid_at,
+          paymentMode: additionalPaymentMode,
+          receiptNumber: collectedPayment.receipt_number,
+        };
+
+        setAdditionalReceiptService(paidService);
+        setShowReceiptPreview(false);
+        setReceiptGenerated(false);
+
+        const refreshedQueue = await fetchTodayQueueFromSupabase();
+        setSupabaseQueueItems(refreshedQueue);
+
+        const refreshedSelected =
+          refreshedQueue.find((item) => item.id === selectedSupabaseQueueItem.id) ||
+          null;
+
+        setSelectedSupabaseQueueItem(refreshedSelected);
+        setSupabaseQueueStatus(
+          `Collected additional payment receipt ${collectedPayment.receipt_number}. Patient routed to ${collectedPayment.visit_status}.`
+        );
+
+        setIsPrintingAdditionalReceipt(true);
+
+        setTimeout(() => {
+          window.print();
+          setIsPrintingAdditionalReceipt(false);
+        }, 150);
+      } catch (error) {
+        setSupabaseQueueStatus(
+          error instanceof Error
+            ? `Additional payment error: ${error.message}`
+            : "Additional payment error."
+        );
+      }
+
+      return;
+    }
+
     setAdditionalReceiptService(serviceToPrint);
 
     markAdditionalServicePaid(
-      selectedQueueItem.id,
+      activeItem.id,
       serviceRequestId,
       additionalPaymentMode
     );
@@ -916,13 +970,16 @@ export default function ReceptionPage() {
   function handlePrintPaidAdditionalReceipt(
     serviceRequest: AdditionalServiceRequest
   ) {
-    if (!selectedQueueItem) {
+    const activeItem = selectedSupabaseQueueItem || selectedQueueItem;
+
+    if (!activeItem) {
       alert("Please select a patient first.");
       return;
     }
 
     setAdditionalReceiptService(serviceRequest);
     setAdditionalPaymentMode(serviceRequest.paymentMode || "Cash");
+    setShowReceiptPreview(false);
     setIsPrintingAdditionalReceipt(true);
 
     setTimeout(() => {
@@ -1001,7 +1058,7 @@ export default function ReceptionPage() {
     return (
       <div className="bg-white p-4">
         <AdditionalServiceReceiptPreview
-          patient={selectedQueueItem}
+          patient={activeReceptionQueueItem}
           serviceRequest={additionalReceiptService}
           paymentMode={additionalPaymentMode}
           clinicSettingsOverride={activeClinicSettings}
@@ -1044,6 +1101,12 @@ export default function ReceptionPage() {
                   {supabaseQueueItems.map((item) => {
                     const isSelected =
                       selectedSupabaseQueueItem?.id === item.id;
+                    const itemPendingAdditionalService =
+                      getPendingAdditionalService(item);
+                    const itemPaidAdditionalServices =
+                      item.additionalServices?.filter(
+                        (service) => service.status === "Paid"
+                      ) || [];
 
                     return (
                       <button
@@ -1066,8 +1129,59 @@ export default function ReceptionPage() {
                           {item.visitType} · {item.status}
                         </p>
                         <p className="mt-1 text-xs text-slate-600">
-                          Paid ₹{item.amountPaid} · {item.paymentMode}
+                          Consultation paid ₹{item.amountPaid} · {item.paymentMode}
                         </p>
+
+                        {itemPendingAdditionalService && (
+                          <div className="mt-3 rounded-xl bg-red-600 p-3 text-white">
+                            <p className="text-xs font-bold uppercase tracking-wide text-red-100">
+                              Additional Payment Pending
+                            </p>
+                            <p className="mt-1 text-sm font-semibold">
+                              {itemPendingAdditionalService.services
+                                .map((service) => service.serviceName)
+                                .join(", ")}
+                            </p>
+                            <p className="mt-1 text-base font-bold">
+                              Collect ₹{itemPendingAdditionalService.netAmount}
+                            </p>
+                          </div>
+                        )}
+
+                        {itemPaidAdditionalServices.length > 0 && (
+                          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                              Additional Paid
+                            </p>
+
+                            <div className="mt-2 grid gap-2">
+                              {itemPaidAdditionalServices.map((service, index) => (
+                                <div
+                                  key={service.id}
+                                  className="rounded-lg bg-white p-2"
+                                >
+                                  <p className="text-xs font-semibold text-slate-900">
+                                    Receipt {index + 2}
+                                    {service.receiptNumber
+                                      ? ` · ${service.receiptNumber}`
+                                      : ""}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-700">
+                                    {service.services
+                                      .map((lineItem) => lineItem.serviceName)
+                                      .join(", ")}
+                                  </p>
+                                  <p className="mt-1 text-xs font-bold text-emerald-800">
+                                    Paid ₹{service.netAmount}
+                                    {service.paymentMode
+                                      ? ` · ${service.paymentMode}`
+                                      : ""}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -1114,6 +1228,50 @@ export default function ReceptionPage() {
                       Reprint Consultation Receipt
                     </button>
                   </div>
+
+                  {paidAdditionalServices.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3">
+                      <p className="text-sm font-semibold text-emerald-800">
+                        Additional Receipts
+                      </p>
+
+                      <div className="mt-3 grid gap-3">
+                        {paidAdditionalServices.map((service, index) => (
+                          <div
+                            key={service.id}
+                            className="rounded-xl border border-emerald-100 bg-emerald-50 p-3"
+                          >
+                            <p className="text-sm font-semibold text-slate-900">
+                              Receipt {index + 2}
+                              {service.receiptNumber
+                                ? ` · ${service.receiptNumber}`
+                                : ""}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-700">
+                              {service.services
+                                .map((item) => item.serviceName)
+                                .join(", ")}
+                            </p>
+
+                            <p className="mt-1 text-xs font-medium text-emerald-800">
+                              Paid ₹{service.netAmount}
+                              {service.paymentMode
+                                ? ` · ${service.paymentMode}`
+                                : ""}
+                            </p>
+
+                            <button
+                              onClick={() => handlePrintPaidAdditionalReceipt(service)}
+                              className="mt-3 w-full rounded-xl bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+                            >
+                              Reprint Additional Receipt
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedSupabaseQueueItem.status === "Waiting" ? (
                     <button
@@ -1246,9 +1404,9 @@ export default function ReceptionPage() {
             subtitle="Find existing patient, register, or correct selected queue patient"
           >
             <div className="grid gap-4">
-              {selectedQueueItem && pendingAdditionalService && (
+              {activeReceptionQueueItem && pendingAdditionalService && (
                 <AdditionalPaymentPendingCard
-                  patient={selectedQueueItem}
+                  patient={activeReceptionQueueItem}
                   paymentMode={additionalPaymentMode}
                   onPaymentModeChange={setAdditionalPaymentMode}
                   onCollectPayment={handleCollectAdditionalPaymentAndPrint}

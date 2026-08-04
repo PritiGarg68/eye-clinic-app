@@ -1631,8 +1631,8 @@ export default function DoctorPage() {
       title="Doctor / Admin Workspace"
       subtitle="Consultation, prescriptions, patient history, reports, and master data"
     >
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="grid gap-6 lg:col-span-1">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="grid gap-6 lg:col-span-3">
           <SectionCard
             title="Supabase Doctor Queue"
             subtitle="Active patients first, completed today at bottom"
@@ -1697,7 +1697,7 @@ export default function DoctorPage() {
         <SectionCard
           title="Current Consultation"
           subtitle="Patient/workup details, findings, diagnosis, medicines, advice, and follow-up"
-          className="lg:col-span-3"
+          className="lg:col-span-7"
         >
           <div className="grid gap-4">
             {statusMessage && (
@@ -1974,7 +1974,7 @@ export default function DoctorPage() {
           </div>
         </SectionCard>
 
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-2">
         <DoctorActionPanel
   onStartConsultation={handleStartConsultation}
   onSaveDraft={handleSaveConsultationDraft}

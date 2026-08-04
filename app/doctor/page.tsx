@@ -1541,20 +1541,66 @@ export default function DoctorPage() {
     }
   }
 
-  function handlePrintSpectacleAdvice() {
-    if (!selectedQueueItem) {
+  async function handlePrintSpectacleAdvice() {
+    if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
     }
 
-    saveDoctorConsultation(selectedQueueItem.id, consultation);
-    setConsultationSaved(true);
-    setIsPrintingSpectacleAdvice(true);
-    setStatusMessage("Spectacle advice ready for printing.");
+    if (selectedSupabaseQueueItem) {
+      if (!selectedSupabaseQueueItem.patientId) {
+        alert("Supabase patient ID is missing for this queue item.");
+        return;
+      }
 
-    setTimeout(() => {
-      window.print();
-    }, 150);
+      try {
+        const savedConsultation =
+          await saveDoctorConsultationDraftToSupabase({
+            visitId: selectedSupabaseQueueItem.id,
+            patientId: selectedSupabaseQueueItem.patientId,
+            consultation,
+          });
+
+        const updatedItem = {
+          ...selectedSupabaseQueueItem,
+          doctorConsultation: savedConsultation,
+        };
+
+        setSelectedSupabaseQueueItem(updatedItem);
+        setSupabaseDoctorQueueItems((current) =>
+          current.map((item) =>
+            item.id === updatedItem.id ? updatedItem : item
+          )
+        );
+        setConsultation(savedConsultation);
+        setConsultationSaved(true);
+        setIsPrintingSpectacleAdvice(true);
+        setStatusMessage("Supabase spectacle advice ready for printing.");
+
+        setTimeout(() => {
+          window.print();
+        }, 150);
+      } catch (error) {
+        setStatusMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not save Supabase spectacle advice for printing."
+        );
+      }
+
+      return;
+    }
+
+    if (selectedQueueItem) {
+      saveDoctorConsultation(selectedQueueItem.id, consultation);
+      setConsultationSaved(true);
+      setIsPrintingSpectacleAdvice(true);
+      setStatusMessage("Spectacle advice ready for printing.");
+
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    }
   }
 
   if (isPrintingPrescription) {

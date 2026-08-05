@@ -23,6 +23,29 @@ function hasText(value?: string | null) {
   return Boolean(value && value.trim());
 }
 
+function hasVision(visit: PatientHistoryVisit) {
+  return Boolean(
+    visit.vision.unaided.distanceOD ||
+      visit.vision.unaided.distanceOS ||
+      visit.vision.unaided.nearOD ||
+      visit.vision.unaided.nearOS ||
+      visit.vision.withGlasses.distanceOD ||
+      visit.vision.withGlasses.distanceOS ||
+      visit.vision.withGlasses.nearOD ||
+      visit.vision.withGlasses.nearOS ||
+      visit.vision.withPinHole.distanceOD ||
+      visit.vision.withPinHole.distanceOS ||
+      visit.vision.withPinHole.nearOD ||
+      visit.vision.withPinHole.nearOS
+  );
+}
+
+const visionRows = [
+  { key: "unaided", label: "Unaided" },
+  { key: "withGlasses", label: "Glasses" },
+  { key: "withPinHole", label: "Pin Hole" },
+] as const;
+
 function Section({
   title,
   children,
@@ -65,6 +88,68 @@ function VisitDetails({ visit }: { visit: PatientHistoryVisit }) {
       {hasText(visit.historyNotes) && (
         <Section title="History / Background">
           <p className="whitespace-pre-wrap">{visit.historyNotes}</p>
+        </Section>
+      )}
+
+      {hasVision(visit) && (
+        <Section title="Vision / VA">
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-white">
+                  <th className="border border-slate-200 px-2 py-1 text-left">
+                    Type
+                  </th>
+                  <th className="border border-slate-200 px-2 py-1 text-center">
+                    D OD
+                  </th>
+                  <th className="border border-slate-200 px-2 py-1 text-center">
+                    D OS
+                  </th>
+                  <th className="border border-slate-200 px-2 py-1 text-center">
+                    N OD
+                  </th>
+                  <th className="border border-slate-200 px-2 py-1 text-center">
+                    N OS
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {visionRows.map((row) => {
+                  const entry = visit.vision[row.key];
+
+                  return (
+                    <tr key={row.key}>
+                      <td className="border border-slate-200 px-2 py-1 font-medium">
+                        {row.label}
+                      </td>
+                      <td className="border border-slate-200 px-2 py-1 text-center">
+                        {entry.distanceOD || "—"}
+                      </td>
+                      <td className="border border-slate-200 px-2 py-1 text-center">
+                        {entry.distanceOS || "—"}
+                      </td>
+                      <td className="border border-slate-200 px-2 py-1 text-center">
+                        {entry.nearOD || "—"}
+                      </td>
+                      <td className="border border-slate-200 px-2 py-1 text-center">
+                        {entry.nearOS || "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {(hasText(visit.refractionRight) || hasText(visit.refractionLeft)) && (
+        <Section title="Refraction">
+          <p>
+            Right: {visit.refractionRight || "—"} · Left:{" "}
+            {visit.refractionLeft || "—"}
+          </p>
         </Section>
       )}
 
@@ -119,7 +204,7 @@ function VisitDetails({ visit }: { visit: PatientHistoryVisit }) {
 
       {hasText(visit.advice) && (
         <Section title="Advice">
-          <p className="whi">{visit.advice}</p>
+          <p className="whitespace-pre-wrap">{visit.advice}</p>
         </Section>
       )}
 

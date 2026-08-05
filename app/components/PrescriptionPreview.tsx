@@ -6,6 +6,7 @@ type PrescriptionPreviewProps = {
   patient: QueueItem | null;
   showSpectacleAdvice?: boolean;
   clinicSettingsOverride?: ClinicSettings;
+  dateOverride?: string;
 };
 
 const visionRows = [
@@ -22,6 +23,7 @@ export default function PrescriptionPreview({
   patient,
   showSpectacleAdvice = true,
   clinicSettingsOverride,
+  dateOverride,
 }: PrescriptionPreviewProps) {
   const activeClinicSettings = clinicSettingsOverride || clinicSettings;
 
@@ -36,7 +38,7 @@ export default function PrescriptionPreview({
   const optometristWorkup = patient.optometristWorkup;
   const consultation = patient.doctorConsultation;
   const finalSpectacleAdvice = consultation?.finalSpectacleAdvice;
-  const today = new Date().toLocaleDateString();
+  const today = dateOverride || new Date().toLocaleDateString();
 
   const hasChiefComplaint = hasText(optometristWorkup?.chiefComplaint);
   const hasHistory = hasText(optometristWorkup?.optometristNotes);

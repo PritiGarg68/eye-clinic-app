@@ -3,6 +3,8 @@
 import { useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
+import PrescriptionPreview from "../components/PrescriptionPreview";
+import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import {
   SupabasePatient,
@@ -181,6 +183,10 @@ export default function PatientRecordsPage() {
     visit: PatientRecordVisit;
     payment: PatientRecordPayment;
   } | null>(null);
+  const [printingPrescription, setPrintingPrescription] =
+    useState<PatientRecordVisit | null>(null);
+  const [printingSpectacleAdvice, setPrintingSpectacleAdvice] =
+    useState<PatientRecordVisit | null>(null);
 
   async function handleSearchPatients() {
     const term = searchTerm.trim();
@@ -234,6 +240,24 @@ export default function PatientRecordsPage() {
     }, 150);
   }
 
+  function handlePrintPrescription(visit: PatientRecordVisit) {
+    setPrintingPrescription(visit);
+
+    setTimeout(() => {
+      window.print();
+      setPrintingPrescription(null);
+    }, 150);
+  }
+
+  function handlePrintSpectacleAdvice(visit: PatientRecordVisit) {
+    setPrintingSpectacleAdvice(visit);
+
+    setTimeout(() => {
+      window.print();
+      setPrintingSpectacleAdvice(null);
+    }, 150);
+  }
+
   if (printingReceipt && selectedPatient) {
     return (
       <ReceiptPrintView
@@ -241,6 +265,29 @@ export default function PatientRecordsPage() {
         visit={printingReceipt.visit}
         payment={printingReceipt.payment}
       />
+    );
+  }
+
+  if (printingPrescription) {
+    return (
+      <div className="bg-white p-4">
+        <PrescriptionPreview
+          patient={printingPrescription.queueItem}
+          showSpectacleAdvice={false}
+          dateOverride={formatDate(printingPrescription.visitDate)}
+        />
+      </div>
+    );
+  }
+
+  if (printingSpectacleAdvice) {
+    return (
+      <div className="bg-white p-4">
+        <SpectacleAdvicePrint
+          patient={printingSpectacleAdvice.queueItem}
+          dateOverride={formatDate(printingSpectacleAdvice.visitDate)}
+        />
+      </div>
     );
   }
 
@@ -364,6 +411,31 @@ export default function PatientRecordsPage() {
                   </div>
 
                   <div className="mt-4 grid gap-3">
+                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                      <p className="text-sm font-semibold text-blue-900">
+                        Clinical Prints
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintPrescription(visit)}
+                          disabled={!visit.hasPrescription}
+                          className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                        >
+                          Print Prescription
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handlePrintSpectacleAdvice(visit)}
+                          disabled={!visit.hasSpectacleAdvice}
+                          className="rounded-xl bg-indigo-700 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
+                        >
+                          Print Spectacle Advice
+                        </button>
+                      </div>
+                    </div>
+
                     <p className="text-sm font-semibold text-slate-800">
                       Receipts
                     </p>

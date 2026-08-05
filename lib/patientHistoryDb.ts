@@ -30,6 +30,28 @@ export type PatientHistoryVisit = {
 
   chiefComplaint: string;
   historyNotes: string;
+  vision: {
+    unaided: {
+      distanceOD: string;
+      distanceOS: string;
+      nearOD: string;
+      nearOS: string;
+    };
+    withGlasses: {
+      distanceOD: string;
+      distanceOS: string;
+      nearOD: string;
+      nearOS: string;
+    };
+    withPinHole: {
+      distanceOD: string;
+      distanceOS: string;
+      nearOD: string;
+      nearOS: string;
+    };
+  };
+  refractionRight: string;
+  refractionLeft: string;
   iopRight: string;
   iopLeft: string;
   dilationStatus: string;
@@ -59,6 +81,8 @@ type WorkupRow = {
   visit_id: string;
   chief_complaint: string | null;
   history_notes: string | null;
+  vision_json: unknown;
+  refraction_json: unknown;
   iop_od: number | string | null;
   iop_os: number | string | null;
   dilation_status: string | null;
@@ -120,6 +144,48 @@ function valueToString(value: number | string | null | undefined) {
   }
 
   return String(value);
+}
+
+const emptyVision = {
+  unaided: { distanceOD: "", distanceOS: "", nearOD: "", nearOS: "" },
+  withGlasses: { distanceOD: "", distanceOS: "", nearOD: "", nearOS: "" },
+  withPinHole: { distanceOD: "", distanceOS: "", nearOD: "", nearOS: "" },
+};
+
+function normalizeVisionJson(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return emptyVision;
+  }
+
+  const vision = value as Partial<typeof emptyVision>;
+
+  return {
+    unaided: {
+      ...emptyVision.unaided,
+      ...vision.unaided,
+    },
+    withGlasses: {
+      ...emptyVision.withGlasses,
+      ...vision.withGlasses,
+    },
+    withPinHole: {
+      ...emptyVision.withPinHole,
+      ...vision.withPinHole,
+    },
+  };
+}
+
+function normalizeRefractionJson(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { right: "", left: "" };
+  }
+
+  const refraction = value as { right?: string; left?: string };
+
+  return {
+    right: refraction.right || "",
+    left: refraction.left || "",
+  };
 }
 
 function groupByVisit<T extends { visit_id: string }>(rows: T[]) {
@@ -198,7 +264,7 @@ export async function fetchPatientHistoryFromSupabase(
     supabase
       .from("optometrist_workups")
       .select(
-        "visit_id, chief_complaint, history_notes, iop_od, iop_os, dilation_status, dilation_notes"
+        "visit_id, chief_complaint, history_notes, vision_json, refraction_json, iop_od, iop_os, dilation_status, dilation_notes"
       )
       .in("visit_id", visitIds),
     supabase
@@ -292,6 +358,7 @@ export async function fetchPatientHistoryFromSupabase(
     const workup = workupsByVisit[visit.id]?.[0];
     const consultation = consultationsByVisit[visit.id]?.[0];
     const spectacle = spectaclesByVisit[visit.id]?.[0];
+    const refraction = normalizeRefractionJson(workup?.refraction_json);
 
     return {
       visitId: visit.id,
@@ -303,6 +370,9 @@ export async function fetchPatientHistoryFromSupabase(
 
       chiefComplaint: workup?.chief_complaint || "",
       historyNotes: workup?.history_notes || "",
+      vision: normalizeVisionJson(workup?.vision_json),
+      refractionRight: refraction.right,
+      refractionLeft: refraction.left,
       iopRight: valueToString(workup?.iop_od),
       iopLeft: valueToString(workup?.iop_os),
       dilationStatus: workup?.dilation_status || "",

@@ -4,11 +4,13 @@ import { ClinicSettings, clinicSettings } from "../../lib/clinicSettings";
 type SpectacleAdvicePrintProps = {
   patient: QueueItem | null;
   clinicSettingsOverride?: ClinicSettings;
+  dateOverride?: string;
 };
 
 export default function SpectacleAdvicePrint({
   patient,
   clinicSettingsOverride,
+  dateOverride,
 }: SpectacleAdvicePrintProps) {
   const activeClinicSettings = clinicSettingsOverride || clinicSettings;
   if (!patient) {
@@ -20,7 +22,7 @@ export default function SpectacleAdvicePrint({
   }
 
   const finalSpectacleAdvice = patient.doctorConsultation?.finalSpectacleAdvice;
-  const today = new Date().toLocaleDateString();
+  const today = dateOverride || new Date().toLocaleDateString();
 
   return (
     <div className="spectacle-print-area rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 shadow-sm">

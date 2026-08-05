@@ -15,6 +15,10 @@ import {
   PatientRecordVisit,
   fetchPatientRecordsFromSupabase,
 } from "../../lib/patientRecordsDb";
+import {
+  PatientAttachment,
+  fetchPatientAttachmentsFromSupabase,
+} from "../../lib/patientAttachmentsDb";
 
 function formatDateTime(value: string) {
   if (!value) {
@@ -30,6 +34,145 @@ function formatDate(value: string) {
   }
 
   return new Date(`${value}T00:00:00`).toLocaleDateString();
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) {
+    return "";
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getAttachmentDisplayName(attachment: PatientAttachment) {
+  if (attachment.notes) {
+    return `${attachment.attachmentCategory} · ${attachment.notes}`;
+  }
+
+  return attachment.attachmentCategory;
+}
+
+function printAttachment(attachment: PatientAttachment) {
+  const printWindow = window.open("", "_blank");
+
+  if (!printWindow) {
+    alert("Could not open attachment for printing.");
+    return;
+  }
+
+  const displayName = getAttachmentDisplayName(attachment);
+  const uploadedAt = formatDateTime(attachment.createdAt);
+  const isImage = attachment.fileType.startsWith("image/");
+  const isPdf = attachment.fileType === "application/pdf";
+
+  const fileDisplay = isImage
+    ? `<img src="${attachment.publicUrl}" onload="window.focus(); window.print();" />`
+    : isPdf
+      ? `<iframe src="${attachment.publicUrl}" title="${attachment.fileName}"></iframe>`
+      : `<p>This file type can be viewed here: <a href="${attachment.publicUrl}" target="_blank" rel="noopener noreferrer">${attachment.fileName}</a></p>`;
+
+  const helperText = isPdf
+    ? "Click Print below if the print dialog does not open automatically."
+    : "Print dialog should open automatically.";
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>${attachment.fileName}</title>
+        <style>
+          body {
+            margin: 0;
+            padding: 16px;
+            font-family: Arial, sans-serif;
+            color: #0f172a;
+          }
+
+          .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
+          }
+
+          .title {
+            font-size: 14px;
+            font-weight: 700;
+          }
+
+          .meta {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #475569;
+          }
+
+          .helper {
+            margin-top: 4px;
+            font-size: 11px;
+            color: #64748b;
+          }
+
+          button {
+            border: 0;
+            border-radius: 10px;
+            background: #0f172a;
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 9px 14px;
+            cursor: pointer;
+          }
+
+          img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+          }
+
+          iframe {
+            width: 100%;
+            height: calc(100vh - 92px);
+            border: 0;
+          }
+
+          @media print {
+            body {
+              padding: 0;
+            }
+
+            .toolbar {
+              display: none;
+            }
+
+            img {
+              max-width: 100%;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div>
+            <div class="title">${displayName}</div>
+            <div class="meta">${attachment.fileName} · Uploaded ${uploadedAt}</div>
+            <div class="helper">${helperText}</div>
+          </div>
+          <button onclick="window.focus(); window.print();">Print</button>
+        </div>
+        ${fileDisplay}
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
 }
 
 function ReceiptPrintView({
@@ -178,6 +321,7 @@ export default function PatientRecordsPage() {
   const [selectedPatient, setSelectedPatient] =
     useState<SupabasePatient | null>(null);
   const [visits, setVisits] = useState<PatientRecordVisit[]>([]);
+  const [attachments, setAttachments] = useState<PatientAttachment[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
   const [printingReceipt, setPrintingReceipt] = useState<{
     visit: PatientRecordVisit;
@@ -199,6 +343,7 @@ export default function PatientRecordsPage() {
     setStatusMessage("Searching patients...");
     setSelectedPatient(null);
     setVisits([]);
+    setAttachments([]);
 
     try {
       const results = await searchPatientsFromSupabase(term);
@@ -216,9 +361,16 @@ export default function PatientRecordsPage() {
     setStatusMessage("Loading patient records...");
 
     try {
-      const records = await fetchPatientRecordsFromSupabase(patient.id);
+      const [records, patientAttachments] = await Promise.all([
+        fetchPatientRecordsFromSupabase(patient.id),
+        fetchPatientAttachmentsFromSupabase(patient.id),
+      ]);
+
       setVisits(records);
-      setStatusMessage(`Loaded ${records.length} visit record(s).`);
+      setAttachments(patientAttachments);
+      setStatusMessage(
+        `Loaded ${records.length} visit record(s) and ${patientAttachments.length} attachment(s).`
+      );
     } catch (error) {
       setStatusMessage(
         error instanceof Error
@@ -386,6 +538,80 @@ export default function PatientRecordsPage() {
                 <p className="mt-1 text-sm text-slate-600">
                   {selectedPatient.uhid} · {selectedPatient.mobile}
                 </p>
+              </div>
+
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-indigo-900">
+                      Reports / Attachments
+                    </p>
+                    <p className="mt-1 text-xs text-indigo-800">
+                      Patient-level uploaded files such as OCT, fundus, perimetry, and external reports.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
+                    {attachments.length} file(s)
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {attachments.length === 0 ? (
+                    <div className="rounded-xl bg-white p-3 text-sm text-slate-500">
+                      No reports or attachments uploaded for this patient.
+                    </div>
+                  ) : (
+                    attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="rounded-xl border border-indigo-100 bg-white p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="break-words font-semibold text-slate-900">
+                              {getAttachmentDisplayName(attachment)}
+                            </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              Uploaded {formatDateTime(attachment.createdAt)}
+                              {formatFileSize(attachment.fileSizeBytes)
+                                ? ` · ${formatFileSize(attachment.fileSizeBytes)}`
+                                : ""}
+                            </p>
+                            <p
+                              className="mt-1 max-w-xl truncate text-xs text-slate-500"
+                              title={attachment.fileName}
+                            >
+                              {attachment.fileName}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                window.open(
+                                  attachment.publicUrl,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                )
+                              }
+                              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => printAttachment(attachment)}
+                              className="rounded-xl bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800"
+                            >
+                              Print
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               {visits.length === 0 && (

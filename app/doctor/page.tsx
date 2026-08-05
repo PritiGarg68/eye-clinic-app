@@ -27,6 +27,7 @@ import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { createOrUpdatePendingAdditionalServiceRequestInSupabase } from "../../lib/additionalServiceRequestDb";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
+import { upsertFreeFollowUpEntitlementForVisit } from "../../lib/followUpEntitlementDb";
 import {
   completeDoctorConsultationInSupabase,
   fetchDoctorConsultationFromSupabase,
@@ -1122,6 +1123,11 @@ export default function DoctorPage() {
             consultation,
           });
 
+        const entitlement =
+          await upsertFreeFollowUpEntitlementForVisit(
+            selectedSupabaseQueueItem.id
+          );
+
         const updatedItem = {
           ...selectedSupabaseQueueItem,
           status: "Completed" as const,
@@ -1140,7 +1146,9 @@ export default function DoctorPage() {
         setConsultation(savedConsultation);
         setConsultationSaved(true);
         setStatusMessage(
-          "Supabase consultation completed. Patient moved to Completed Today."
+          entitlement
+            ? `Supabase consultation completed. Free follow-up valid until ${entitlement.validUntil}.`
+            : "Supabase consultation completed. Patient moved to Completed Today."
         );
         setShowPrescriptionPreview(false);
         await loadSupabaseDoctorQueue();

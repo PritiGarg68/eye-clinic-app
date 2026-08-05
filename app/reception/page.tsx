@@ -15,6 +15,11 @@ import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import { collectAdditionalServicePaymentInSupabase } from "../../lib/additionalServiceRequestDb";
 import {
+  FreeFollowUpEntitlement,
+  consumeFreeFollowUpEntitlement,
+  fetchActiveFreeFollowUpEntitlement,
+} from "../../lib/followUpEntitlementDb";
+import {
   SupabasePatient,
   createPatientInSupabase,
   searchPatientsFromSupabase,
@@ -106,6 +111,9 @@ export default function ReceptionPage() {
   const [latestSupabaseCheckIn, setLatestSupabaseCheckIn] =
     useState<ConsultationCheckInResult | null>(null);
   const [supabaseCheckInStatus, setSupabaseCheckInStatus] = useState("");
+  const [freeFollowUpEntitlement, setFreeFollowUpEntitlement] =
+    useState<FreeFollowUpEntitlement | null>(null);
+  const [freeFollowUpStatus, setFreeFollowUpStatus] = useState("");
 
   const [receiptGenerated, setReceiptGenerated] = useState(false);
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
@@ -298,6 +306,10 @@ export default function ReceptionPage() {
     };
   }
 
+  useEffect(() => {
+    void loadFreeFollowUpEntitlementForPatient(selectedPatient);
+  }, [selectedPatient?.id]);
+
   const receiptPatient: Patient | null = queueItemBeingEdited
     ? {
         id: queueItemBeingEdited.id,
@@ -320,6 +332,32 @@ export default function ReceptionPage() {
             createdAt: new Date().toISOString(),
           }
         : null);
+
+  async function loadFreeFollowUpEntitlementForPatient(patient: Patient | null) {
+    setFreeFollowUpEntitlement(null);
+    setFreeFollowUpStatus("");
+
+    if (!patient || !isSupabasePatient(patient)) {
+      return;
+    }
+
+    try {
+      const entitlement = await fetchActiveFreeFollowUpEntitlement(patient.id);
+      setFreeFollowUpEntitlement(entitlement);
+
+      if (entitlement) {
+        setFreeFollowUpStatus(
+          `Free follow-up available until ${entitlement.validUntil}.`
+        );
+      }
+    } catch (error) {
+      setFreeFollowUpStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not check free follow-up eligibility."
+      );
+    }
+  }
 
   function mapReceptionVisitTypeToSupabase(
     currentVisitType: VisitType
@@ -700,6 +738,13 @@ export default function ReceptionPage() {
       return;
     }
 
+    if (visitType === "Free Follow-Up" && !freeFollowUpEntitlement) {
+      setSupabaseCheckInStatus(
+        "No active free follow-up entitlement found for this patient."
+      );
+      return;
+    }
+
     setSupabaseCheckInStatus("Creating Supabase check-in...");
 
     try {
@@ -716,6 +761,16 @@ export default function ReceptionPage() {
             : mapReceptionPaymentModeToSupabase(effectivePaymentMode),
         notes: "Created from Reception Supabase check-in",
       });
+
+      if (visitType === "Free Follow-Up") {
+        await consumeFreeFollowUpEntitlement({
+          patientId: selectedPatient.id,
+          usedVisitId: result.visitId,
+        });
+
+        setFreeFollowUpEntitlement(null);
+        setFreeFollowUpStatus("Free follow-up entitlement used for this visit.");
+      }
 
       const queue = await fetchTodayQueueFromSupabase();
 
@@ -1716,6 +1771,40 @@ export default function ReceptionPage() {
                     Original Consultation Payment Details
                   </p>
 
+                  {freeFollowUpStatus && (
+                    <div
+                      className={`mt-4 rounded-xl border p-4 text-sm ${
+                        freeFollowUpEntitlement
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      <p className="font-semibold">
+                        {freeFollowUpEntitlement
+                          ? "Free follow-up eligible"
+                          : "Free follow-up status"}
+                      </p>
+                      <p className="mt-1">{freeFollowUpStatus}</p>
+
+                      {freeFollowUpEntitlement && visitType !== "Free Follow-Up" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisitType("Free Follow-Up");
+                            setConsultationFee("0");
+                            setDiscountAmount("0");
+                            setPaymentMode("None");
+                            setReceiptGenerated(false);
+                            setShowReceiptPreview(false);
+                          }}
+                          className="mt-3 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+                        >
+                          Use Free Follow-Up
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 text-sm font-medium text-slate-700">
                       Visit Type
@@ -1789,6 +1878,7 @@ export default function ReceptionPage() {
                         }
                         className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                       >
+                        <option value="None">None</option>
                         <option value="Cash">Cash</option>
                         <option value="UPI">UPI</option>
                         <option value="Card">Card</option>

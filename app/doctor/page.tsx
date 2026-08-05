@@ -8,6 +8,7 @@ import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
 import MedicineEditor from "../components/MedicineEditor";
 import PatientHistoryPanel from "../components/PatientHistoryPanel";
+import PatientAttachmentsPanel from "../components/PatientAttachmentsPanel";
 import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import DoctorActionPanel from "../components/DoctorActionPanel";
 import DoctorWorkupOverridePanel from "../components/DoctorWorkupOverridePanel";
@@ -1631,8 +1632,8 @@ export default function DoctorPage() {
       title="Doctor / Admin Workspace"
       subtitle="Consultation, prescriptions, patient history, reports, and master data"
     >
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="grid gap-6 lg:col-span-3">
+      <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)_180px]">
+        <div className="grid min-w-0 gap-6">
           <SectionCard
             title="Supabase Doctor Queue"
             subtitle="Active patients first, completed today at bottom"
@@ -1692,12 +1693,22 @@ export default function DoctorPage() {
           <SectionCard title="History Timeline" subtitle="Previous visits">
             <PatientHistoryPanel patient={activeQueueItem} />
           </SectionCard>
+
+          <SectionCard
+            title="Attachments / Reports"
+            subtitle="Patient-level files by upload date"
+          >
+            <PatientAttachmentsPanel
+              patient={activeQueueItem}
+              sourceLabel="Doctor"
+            />
+          </SectionCard>
         </div>
 
         <SectionCard
           title="Current Consultation"
           subtitle="Patient/workup details, findings, diagnosis, medicines, advice, and follow-up"
-          className="lg:col-span-7"
+          className="min-w-0"
         >
           <div className="grid gap-4">
             {statusMessage && (
@@ -1974,7 +1985,7 @@ export default function DoctorPage() {
           </div>
         </SectionCard>
 
-        <div className="lg:col-span-2">
+        <div className="min-w-0">
         <DoctorActionPanel
   onStartConsultation={handleStartConsultation}
   onSaveDraft={handleSaveConsultationDraft}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
+import PatientAttachmentsPanel from "../components/PatientAttachmentsPanel";
 import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
 import { useQueue } from "../components/QueueProvider";
@@ -609,10 +610,11 @@ export default function OptometristPage() {
       subtitle="Workup, refraction, IOP, dilation, and spectacle draft"
     >
       <div className="grid gap-6 lg:grid-cols-3">
-        <SectionCard
-          title="Live Queue"
-          subtitle="Patients ready for optometrist workup"
-        >
+        <div className="grid gap-6">
+          <SectionCard
+            title="Live Queue"
+            subtitle="Patients ready for optometrist workup"
+          >
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -732,7 +734,18 @@ export default function OptometristPage() {
             selectedItemId={selectedQueueItem?.id}
             onSelectItem={handleSelectPatientFromQueue}
           />
-        </SectionCard>
+          </SectionCard>
+
+          <SectionCard
+            title="Attachments / Reports"
+            subtitle="Patient-level files by upload date"
+          >
+            <PatientAttachmentsPanel
+              patient={activeQueueItem}
+              sourceLabel="Optometrist"
+            />
+          </SectionCard>
+        </div>
 
         <SectionCard
           title="Patient Workup"

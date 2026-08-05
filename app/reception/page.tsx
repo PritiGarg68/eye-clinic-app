@@ -2028,7 +2028,7 @@ export default function ReceptionPage() {
                 </div>
               )}
 
-<div className="grid gap-4 md:grid-cols-2">
+<div className="grid gap-4 md:grid-cols-3">
 <button
   onClick={handleStartNextPatient}
   className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
@@ -2042,6 +2042,15 @@ export default function ReceptionPage() {
   >
     New Patient
   </button>
+
+  <a
+    href="/patient-records"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="rounded-xl bg-indigo-700 px-4 py-3 text-center font-medium text-white hover:bg-indigo-800"
+  >
+    Patient Records
+  </a>
 </div>
 
 <div className="rounded-xl border border-red-200 bg-red-50 p-4">

@@ -1993,17 +1993,34 @@ export default function DoctorPage() {
           </div>
         </SectionCard>
 
-        <div className="min-w-0">
-        <DoctorActionPanel
-  onStartConsultation={handleStartConsultation}
-  onSaveDraft={handleSaveConsultationDraft}
-  onPreviewPrescription={handlePreviewPrescription}
-  onPrintPrescription={handlePrintPrescription}
-  onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
-  onOpenAdditionalServicePanel={handleOpenAdditionalServicePanel}
-  onSendForDilation={handleSendForDilation}
-  onCompleteConsultation={handleCompleteConsultation}
-/>
+        <div className="grid min-w-0 content-start gap-3 lg:sticky lg:top-6">
+          <DoctorActionPanel
+            onStartConsultation={handleStartConsultation}
+            onSaveDraft={handleSaveConsultationDraft}
+            onPreviewPrescription={handlePreviewPrescription}
+            onPrintPrescription={handlePrintPrescription}
+            onPrintSpectacleAdvice={handlePrintSpectacleAdvice}
+            onOpenAdditionalServicePanel={handleOpenAdditionalServicePanel}
+            onSendForDilation={handleSendForDilation}
+            onCompleteConsultation={handleCompleteConsultation}
+          />
+
+          <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3">
+            <p className="text-sm font-semibold text-indigo-900">
+              Patient Records
+            </p>
+            <p className="mt-1 text-xs text-indigo-800">
+              Search old visits, receipts, prescriptions, and reports.
+            </p>
+            <a
+              href="/patient-records"
+    target="_blank"
+    rel="noopener noreferrer"
+              className="mt-3 block rounded-xl bg-indigo-700 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-indigo-800"
+            >
+              Records / Reprints
+            </a>
+          </div>
         </div>
       </div>
     </AppShell>

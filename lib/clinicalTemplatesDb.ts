@@ -6,6 +6,7 @@ export type ClinicalTemplateType =
   | "Finding"
   | "Diagnosis"
   | "Advice"
+  | "Spectacle Advice"
   | "Instruction";
 
 export type ClinicalTemplate = {

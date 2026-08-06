@@ -20,6 +20,7 @@ const templateTypes: ClinicalTemplateType[] = [
   "Finding",
   "Diagnosis",
   "Advice",
+  "Spectacle Advice",
   "Instruction",
 ];
 
@@ -43,6 +44,8 @@ function getTypeDescription(type: ClinicalTemplateType) {
       return "Diagnosis / impression chips.";
     case "Advice":
       return "Doctor advice / plan chips.";
+    case "Spectacle Advice":
+      return "Final spectacle remarks and usage advice.";
     case "Instruction":
       return "Medicine or patient instruction phrases.";
     default:
@@ -375,6 +378,11 @@ export default function AdminMastersPage() {
                   section: "Advice",
                   label: "Advice",
                   description: getTypeDescription("Advice"),
+                },
+                {
+                  section: "Spectacle Advice",
+                  label: "Spectacle Advice",
+                  description: getTypeDescription("Spectacle Advice"),
                 },
                 {
                   section: "Instruction",

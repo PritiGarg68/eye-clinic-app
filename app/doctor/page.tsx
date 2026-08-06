@@ -7,6 +7,7 @@ import QueuePanel from "../components/QueuePanel";
 import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
 import MedicineEditor from "../components/MedicineEditor";
+import ClinicalTemplatePicker from "../components/ClinicalTemplatePicker";
 import PatientHistoryPanel from "../components/PatientHistoryPanel";
 import PatientAttachmentsPanel from "../components/PatientAttachmentsPanel";
 import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
@@ -210,11 +211,15 @@ function normalizeConsultation(
   savedConsultation?: Partial<DoctorConsultation>,
   optometristDraft?: SpectacleAdvice
 ): DoctorConsultation {
-  const savedFinalSpectacleAdvice = savedConsultation?.finalSpectacleAdvice;
+  const savedFinalSpectacleAdvice =
+    savedConsultation?.finalSpectacleAdvice;
 
-  const finalSpectacleAdvice = hasSpectacleAdviceValues(
-    savedFinalSpectacleAdvice
-  )
+  /*
+   * Use the optometrist spectacle draft only before a doctor consultation
+   * has ever been saved. Once a doctor draft exists, preserve its final
+   * spectacle state even when the doctor intentionally cleared all values.
+   */
+  const finalSpectacleAdvice = savedConsultation
     ? savedFinalSpectacleAdvice
     : optometristDraft;
 
@@ -258,22 +263,48 @@ const adviceQuickChips = [
   "Regular follow-up advised.",
 ];
 
-function appendText(existingText: string, textToAdd: string) {
-  const trimmedExisting = existingText.trim();
+const spectacleAdviceQuickChips = [
+  "Distance glasses advised",
+  "Near glasses advised",
+  "Bifocal advised",
+  "Progressive lenses advised",
+  "Use glasses regularly",
+  "Continue current glasses",
+];
 
-  if (!trimmedExisting) {
-    return textToAdd;
+function appendUniqueLine(existingText: string, textToAdd: string) {
+  const cleanText = textToAdd.trim();
+
+  if (!cleanText) {
+    return existingText;
   }
 
-  return `${trimmedExisting}\n${textToAdd}`;
+  const existingLines = existingText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const alreadyExists = existingLines.some(
+    (line) => line.toLowerCase() === cleanText.toLowerCase()
+  );
+
+  if (alreadyExists) {
+    return existingText;
+  }
+
+  return existingLines.length > 0
+    ? `${existingLines.join("\n")}\n${cleanText}`
+    : cleanText;
 }
 
 const doctorRelevantStatuses: QueueStatus[] = [
-  "Ready for Doctor",
+  "Waiting",
+  "Under Optometry",
   "Needs Optometry Review",
-  "Dilated Waiting",
-  "Under Consultation",
   "Additional Payment Pending",
+  "Dilated Waiting",
+  "Ready for Doctor",
+  "Under Consultation",
   "Completed",
 ];
 
@@ -335,6 +366,8 @@ export default function DoctorPage() {
     useState<string[]>(diagnosisQuickChips);
   const [adviceTemplateChips, setAdviceTemplateChips] =
     useState<string[]>(adviceQuickChips);
+  const [spectacleAdviceTemplateChips, setSpectacleAdviceTemplateChips] =
+    useState<string[]>(spectacleAdviceQuickChips);
   const [medicineMasterOptions, setMedicineMasterOptions] =
     useState<MedicineMaster[]>([]);
   const [frequencyMasterOptions, setFrequencyMasterOptions] =
@@ -346,8 +379,13 @@ export default function DoctorPage() {
 
   const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
 
-  const canSendBackToOptometrist =
+  const consultationActive =
     activeQueueItem?.status === "Under Consultation";
+
+  const consultationCompleted =
+    activeQueueItem?.status === "Completed";
+
+  const canSendBackToOptometrist = consultationActive;
 
   const pendingAdditionalService =
     getPendingAdditionalService(activeQueueItem);
@@ -396,7 +434,7 @@ export default function DoctorPage() {
       setSupabaseDoctorQueueStatus(
         doctorQueue.length
           ? `Loaded ${doctorQueue.length} Supabase doctor queue patient(s).`
-          : "No Supabase patients are Ready for Doctor yet."
+          : "No patients are currently checked in."
       );
     } catch (error) {
       setSupabaseDoctorQueueStatus(
@@ -414,12 +452,17 @@ export default function DoctorPage() {
   useEffect(() => {
     async function loadDoctorTemplates() {
       try {
-        const [findingTemplates, diagnosisTemplates, adviceTemplates] =
-          await Promise.all([
-            fetchClinicalTemplatesFromSupabase("Finding"),
-            fetchClinicalTemplatesFromSupabase("Diagnosis"),
-            fetchClinicalTemplatesFromSupabase("Advice"),
-          ]);
+        const [
+          findingTemplates,
+          diagnosisTemplates,
+          adviceTemplates,
+          spectacleAdviceTemplates,
+        ] = await Promise.all([
+          fetchClinicalTemplatesFromSupabase("Finding"),
+          fetchClinicalTemplatesFromSupabase("Diagnosis"),
+          fetchClinicalTemplatesFromSupabase("Advice"),
+          fetchClinicalTemplatesFromSupabase("Spectacle Advice"),
+        ]);
 
         const findingChips = findingTemplates
           .map((template) => template.text)
@@ -428,6 +471,9 @@ export default function DoctorPage() {
           .map((template) => template.text)
           .filter(Boolean);
         const adviceChips = adviceTemplates
+          .map((template) => template.text)
+          .filter(Boolean);
+        const spectacleAdviceChips = spectacleAdviceTemplates
           .map((template) => template.text)
           .filter(Boolean);
 
@@ -441,6 +487,10 @@ export default function DoctorPage() {
 
         if (adviceChips.length > 0) {
           setAdviceTemplateChips(adviceChips);
+        }
+
+        if (spectacleAdviceChips.length > 0) {
+          setSpectacleAdviceTemplateChips(spectacleAdviceChips);
         }
       } catch (error) {
         console.error("Could not load Supabase doctor templates", error);
@@ -694,6 +744,42 @@ export default function DoctorPage() {
     if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
       return;
+    }
+
+    const otherOpenConsultations = [
+      ...supabaseDoctorQueueItems,
+      ...queueItems,
+    ].filter(
+      (item, index, items) =>
+        item.id !== activeQueueItem.id &&
+        item.status === "Under Consultation" &&
+        items.findIndex((candidate) => candidate.id === item.id) === index
+    );
+
+    if (otherOpenConsultations.length > 0) {
+      const patientNames = otherOpenConsultations
+        .map(
+          (item) =>
+            `#${item.tokenNumber} ${item.patientName}`
+        )
+        .join(", ");
+
+      const patientLabel =
+        otherOpenConsultations.length === 1
+          ? "patient is"
+          : "patients are";
+
+      const shouldContinue = window.confirm(
+        `${otherOpenConsultations.length} other ${patientLabel} still Under Consultation:\n\n${patientNames}\n\nYou may keep ${
+          otherOpenConsultations.length === 1 ? "this consultation" : "these consultations"
+        } open, or cancel and review/complete ${
+          otherOpenConsultations.length === 1 ? "it" : "them"
+        } first.\n\nStart the selected consultation anyway?`
+      );
+
+      if (!shouldContinue) {
+        return;
+      }
     }
 
     if (activeQueueItem.status === "Completed") {
@@ -1798,6 +1884,20 @@ export default function DoctorPage() {
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900">
                 Edit Patient / Workup mode is active. Save or Cancel the workup edit before entering consultation findings, diagnosis, medicines, advice, or printing.
               </div>
+            ) : !consultationActive ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-blue-900">
+                  {consultationCompleted
+                    ? "This consultation is completed."
+                    : "Start consultation to enter clinical details."}
+                </p>
+
+                <p className="mt-1 text-sm text-blue-800">
+                  {consultationCompleted
+                    ? "Use Reopen Consultation in Doctor Actions before changing findings, diagnosis, medicines, advice, follow-up, or prescription."
+                    : "Patient and workup details can be reviewed or corrected first. Findings, diagnosis, medicines, advice, follow-up, additional tests, preview, printing, and completion will become available after Start Consultation."}
+                </p>
+              </div>
             ) : (
               <>
             <div className="rounded-xl border border-slate-200 p-4">
@@ -1812,22 +1912,21 @@ export default function DoctorPage() {
                   className="min-h-36 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {findingTemplateChips.map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() =>
-                        updateConsultationField(
-                          "findings",
-                          appendText(consultation.findings, chip)
+                <div className="mt-3">
+                  <ClinicalTemplatePicker
+                    label="Findings"
+                    templates={findingTemplateChips}
+                    currentValue={consultation.findings}
+                    onSelect={(template) =>
+                      updateConsultationField(
+                        "findings",
+                        appendUniqueLine(
+                          consultation.findings,
+                          template
                         )
-                      }
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      {chip}
-                    </button>
-                  ))}
+                      )
+                    }
+                  />
                 </div>
               </label>
             </div>
@@ -1844,22 +1943,21 @@ export default function DoctorPage() {
                   className="min-h-20 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {diagnosisTemplateChips.map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() =>
-                        updateConsultationField(
-                          "diagnosis",
-                          appendText(consultation.diagnosis, chip)
+                <div className="mt-3">
+                  <ClinicalTemplatePicker
+                    label="Diagnosis"
+                    templates={diagnosisTemplateChips}
+                    currentValue={consultation.diagnosis}
+                    onSelect={(template) =>
+                      updateConsultationField(
+                        "diagnosis",
+                        appendUniqueLine(
+                          consultation.diagnosis,
+                          template
                         )
-                      }
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      {chip}
-                    </button>
-                  ))}
+                      )
+                    }
+                  />
                 </div>
               </label>
             </div>
@@ -1889,6 +1987,22 @@ export default function DoctorPage() {
                     placeholder="Final spectacle advice remarks"
                     className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                   />
+
+                  <div className="mt-3">
+                    <ClinicalTemplatePicker
+                      label="Spectacle Advice"
+                      templates={spectacleAdviceTemplateChips}
+                      currentValue={finalSpectacleAdvice.remarks}
+                      onSelect={(template) =>
+                        updateFinalSpectacleRemarks(
+                          appendUniqueLine(
+                            finalSpectacleAdvice.remarks,
+                            template
+                          )
+                        )
+                      }
+                    />
+                  </div>
                 </label>
               </div>
             </div>
@@ -1943,22 +2057,21 @@ export default function DoctorPage() {
                   className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
                 />
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {adviceTemplateChips.map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() =>
-                        updateConsultationField(
-                          "advice",
-                          appendText(consultation.advice, chip)
+                <div className="mt-3">
+                  <ClinicalTemplatePicker
+                    label="Advice"
+                    templates={adviceTemplateChips}
+                    currentValue={consultation.advice}
+                    onSelect={(template) =>
+                      updateConsultationField(
+                        "advice",
+                        appendUniqueLine(
+                          consultation.advice,
+                          template
                         )
-                      }
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                    >
-                      {chip}
-                    </button>
-                  ))}
+                      )
+                    }
+                  />
                 </div>
               </label>
             </div>
@@ -2050,6 +2163,9 @@ export default function DoctorPage() {
 
         <div className="grid min-w-0 content-start gap-3 lg:sticky lg:top-6">
           <DoctorActionPanel
+            patientSelected={Boolean(activeQueueItem)}
+            consultationActive={consultationActive}
+            consultationCompleted={consultationCompleted}
             onStartConsultation={handleStartConsultation}
             onSaveDraft={handleSaveConsultationDraft}
             onPreviewPrescription={handlePreviewPrescription}

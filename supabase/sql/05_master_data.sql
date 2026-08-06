@@ -87,7 +87,7 @@ on public.duration_master (is_active);
 -- ------------------------------------------------------------
 -- Clinical templates
 -- One flexible table for chips/templates.
--- Used for chief complaint, history, findings, diagnosis, advice, instructions.
+-- Used for chief complaint, history, findings, diagnosis, advice, spectacle advice, instructions.
 -- ------------------------------------------------------------
 create table if not exists public.clinical_templates (
   id uuid primary key default gen_random_uuid(),
@@ -108,6 +108,7 @@ create table if not exists public.clinical_templates (
       'Finding',
       'Diagnosis',
       'Advice',
+      'Spectacle Advice',
       'Instruction'
     )),
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Patient } from "../../types/patients";
 import { OptometristWorkup, QueueItem } from "../../types/queue";
 import VisionTable from "./VisionTable";
+import ClinicalTemplatePicker from "./ClinicalTemplatePicker";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 
 type DoctorWorkupOverridePanelProps = {
@@ -77,14 +78,87 @@ const historyQuickChips = [
   "Wearing glasses since childhood",
 ];
 
-function appendText(existingText: string, textToAdd: string) {
-  const trimmedExisting = existingText.trim();
+function appendUniqueLine(existingText: string, textToAdd: string) {
+  const cleanText = textToAdd.trim();
 
-  if (!trimmedExisting) {
-    return textToAdd;
+  if (!cleanText) {
+    return existingText;
   }
 
-  return `${trimmedExisting}\n${textToAdd}`;
+  const existingLines = existingText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const alreadyExists = existingLines.some(
+    (line) => line.toLowerCase() === cleanText.toLowerCase()
+  );
+
+  if (alreadyExists) {
+    return existingText;
+  }
+
+  return existingLines.length > 0
+    ? `${existingLines.join("\n")}\n${cleanText}`
+    : cleanText;
+}
+
+function hasMeaningfulWorkup(
+  workup?: Partial<OptometristWorkup> | null
+) {
+  if (!workup) {
+    return false;
+  }
+
+  const textValues = [
+    workup.chiefComplaint,
+    workup.refractionRight,
+    workup.refractionLeft,
+    workup.iopRight,
+    workup.iopLeft,
+    workup.dilationNotes,
+    workup.optometristNotes,
+  ];
+
+  if (textValues.some((value) => Boolean(value?.trim()))) {
+    return true;
+  }
+
+  if (
+    workup.dilationStatus &&
+    workup.dilationStatus !== "Not Done"
+  ) {
+    return true;
+  }
+
+  const visionValues = Object.values(workup.vision || {}).flatMap(
+    (entry) => Object.values(entry || {})
+  );
+
+  if (
+    visionValues.some((value) =>
+      Boolean(String(value || "").trim())
+    )
+  ) {
+    return true;
+  }
+
+  const spectacleDraft = workup.spectacleDraft;
+
+  if (!spectacleDraft) {
+    return false;
+  }
+
+  const spectacleValues = [
+    ...Object.values(spectacleDraft.od || {}),
+    ...Object.values(spectacleDraft.os || {}),
+    ...Object.values(spectacleDraft.add || {}),
+    spectacleDraft.remarks,
+  ];
+
+  return spectacleValues.some((value) =>
+    Boolean(String(value || "").trim())
+  );
 }
 
 export default function DoctorWorkupOverridePanel({
@@ -150,7 +224,7 @@ export default function DoctorWorkupOverridePanel({
     setAge(String(patient.age));
     setGender(patient.gender);
 
-    setWorkup({
+    const normalizedWorkup: OptometristWorkup = {
       ...emptyWorkup,
       ...patient.optometristWorkup,
       vision: {
@@ -161,10 +235,14 @@ export default function DoctorWorkupOverridePanel({
         ...emptyWorkup.spectacleDraft,
         ...patient.optometristWorkup?.spectacleDraft,
       },
-    });
+    };
 
-    setIsEditing(false);
-    onEditModeChange?.(false);
+    const shouldOpenInEditMode =
+      !hasMeaningfulWorkup(patient.optometristWorkup);
+
+    setWorkup(normalizedWorkup);
+    setIsEditing(shouldOpenInEditMode);
+    onEditModeChange?.(shouldOpenInEditMode);
   }, [patient?.id, patient?.optometristWorkup, onEditModeChange]);
 
   if (!patient) {
@@ -393,25 +471,20 @@ export default function DoctorWorkupOverridePanel({
               />
             </label>
 
-            {chiefComplaintTemplateChips.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {chiefComplaintTemplateChips.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() =>
-                      updateWorkupField(
-                        "chiefComplaint",
-                        appendText(workup.chiefComplaint, chip)
-                      )
-                    }
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    {chip}
-                  </button>
-                ))}
-              </div>
-            )}
+            <ClinicalTemplatePicker
+              label="Chief Complaint"
+              templates={chiefComplaintTemplateChips}
+              currentValue={workup.chiefComplaint}
+              onSelect={(template) =>
+                updateWorkupField(
+                  "chiefComplaint",
+                  appendUniqueLine(
+                    workup.chiefComplaint,
+                    template
+                  )
+                )
+              }
+            />
 
             <div>
               <p className="mb-3 text-sm font-medium text-slate-700">
@@ -450,22 +523,21 @@ export default function DoctorWorkupOverridePanel({
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500"
               />
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {historyTemplateChips.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() =>
-                      updateWorkupField(
-                        "optometristNotes",
-                        appendText(workup.optometristNotes, chip)
+              <div className="mt-3">
+                <ClinicalTemplatePicker
+                  label="History"
+                  templates={historyTemplateChips}
+                  currentValue={workup.optometristNotes}
+                  onSelect={(template) =>
+                    updateWorkupField(
+                      "optometristNotes",
+                      appendUniqueLine(
+                        workup.optometristNotes,
+                        template
                       )
-                    }
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    {chip}
-                  </button>
-                ))}
+                    )
+                  }
+                />
               </div>
 
               <p className="mt-2 text-xs text-slate-500">

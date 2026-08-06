@@ -163,6 +163,23 @@ values
   ('Advice', 'Regular follow-up advised', 6)
 on conflict do nothing;
 
+-- Spectacle Advice
+insert into public.clinical_templates (template_type, template_text, sort_order)
+values
+  ('Spectacle Advice', 'Distance glasses advised', 1),
+  ('Spectacle Advice', 'Near glasses advised', 2),
+  ('Spectacle Advice', 'Bifocal advised', 3),
+  ('Spectacle Advice', 'Progressive lenses advised', 4),
+  ('Spectacle Advice', 'Use glasses regularly', 5),
+  ('Spectacle Advice', 'Use glasses for distance only', 6),
+  ('Spectacle Advice', 'Use glasses for near work only', 7),
+  ('Spectacle Advice', 'Continue current glasses', 8),
+  ('Spectacle Advice', 'Change glasses as prescribed', 9),
+  ('Spectacle Advice', 'Anti-glare coating advised', 10),
+  ('Spectacle Advice', 'Photochromic lenses may be considered', 11),
+  ('Spectacle Advice', 'Review after adaptation', 12)
+on conflict do nothing;
+
 -- Instructions
 insert into public.clinical_templates (template_type, template_text, sort_order)
 values

@@ -291,28 +291,33 @@ export async function saveDoctorConsultationDraftToSupabase(input: {
     }
   }
 
-  const finalSpectacleAdvice = input.consultation.finalSpectacleAdvice;
+  const finalSpectacleAdvice = normalizeSpectacleAdvice(
+    input.consultation.finalSpectacleAdvice
+  );
 
-  if (hasSpectacleAdviceValues(finalSpectacleAdvice)) {
-    const { error: spectacleError } = await supabase
-      .from("spectacle_prescriptions")
-      .upsert(
-        {
-          visit_id: input.visitId,
-          patient_id: input.patientId,
-          consultation_id: consultationRow.id,
-          spectacle_json: finalSpectacleAdvice,
-          remarks: blankToNull(finalSpectacleAdvice.remarks),
-          updated_at: now,
-        },
-        {
-          onConflict: "visit_id",
-        }
-      );
+  /*
+   * Always persist the complete final spectacle state, even when every
+   * value has been cleared. This ensures an earlier saved prescription
+   * is overwritten instead of silently returning after Save Draft.
+   */
+  const { error: spectacleError } = await supabase
+    .from("spectacle_prescriptions")
+    .upsert(
+      {
+        visit_id: input.visitId,
+        patient_id: input.patientId,
+        consultation_id: consultationRow.id,
+        spectacle_json: finalSpectacleAdvice,
+        remarks: blankToNull(finalSpectacleAdvice.remarks),
+        updated_at: now,
+      },
+      {
+        onConflict: "visit_id",
+      }
+    );
 
-    if (spectacleError) {
-      throw new Error(spectacleError.message);
-    }
+  if (spectacleError) {
+    throw new Error(spectacleError.message);
   }
 
   const saved = await fetchDoctorConsultationFromSupabase(input.visitId);

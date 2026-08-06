@@ -26,6 +26,13 @@ import {
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { createOrUpdatePendingAdditionalServiceRequestInSupabase } from "../../lib/additionalServiceRequestDb";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
+import {
+  fetchActiveMedicinesFromSupabase,
+  MedicineMaster,
+} from "../../lib/medicineMasterDb";
+import {
+  fetchActiveSimpleMasterItemsFromSupabase,
+} from "../../lib/simpleMasterDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
 import { upsertFreeFollowUpEntitlementForVisit } from "../../lib/followUpEntitlementDb";
 import {
@@ -328,6 +335,14 @@ export default function DoctorPage() {
     useState<string[]>(diagnosisQuickChips);
   const [adviceTemplateChips, setAdviceTemplateChips] =
     useState<string[]>(adviceQuickChips);
+  const [medicineMasterOptions, setMedicineMasterOptions] =
+    useState<MedicineMaster[]>([]);
+  const [frequencyMasterOptions, setFrequencyMasterOptions] =
+    useState<string[]>([]);
+  const [durationMasterOptions, setDurationMasterOptions] =
+    useState<string[]>([]);
+  const [instructionTemplateOptions, setInstructionTemplateOptions] =
+    useState<string[]>([]);
 
   const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
 
@@ -433,6 +448,42 @@ export default function DoctorPage() {
     }
 
     void loadDoctorTemplates();
+  }, []);
+
+  useEffect(() => {
+    async function loadMedicineEditorMasters() {
+      try {
+        const [
+          medicineOptions,
+          frequencyOptions,
+          durationOptions,
+          instructionOptions,
+        ] = await Promise.all([
+          fetchActiveMedicinesFromSupabase(),
+          fetchActiveSimpleMasterItemsFromSupabase("Frequency"),
+          fetchActiveSimpleMasterItemsFromSupabase("Duration"),
+          fetchClinicalTemplatesFromSupabase("Instruction"),
+        ]);
+
+        setMedicineMasterOptions(medicineOptions);
+        setFrequencyMasterOptions(
+          frequencyOptions.map((item) => item.label).filter(Boolean)
+        );
+        setDurationMasterOptions(
+          durationOptions.map((item) => item.label).filter(Boolean)
+        );
+        setInstructionTemplateOptions(
+          instructionOptions.map((item) => item.text).filter(Boolean)
+        );
+      } catch (error) {
+        console.error(
+          "Could not load medicine editor masters from Supabase",
+          error
+        );
+      }
+    }
+
+    void loadMedicineEditorMasters();
   }, []);
 
   useEffect(() => {
@@ -1844,6 +1895,10 @@ export default function DoctorPage() {
 
             <MedicineEditor
               medicines={consultation.medicines}
+              medicineMasterOptions={medicineMasterOptions}
+              frequencyOptions={frequencyMasterOptions}
+              durationOptions={durationMasterOptions}
+              instructionOptions={instructionTemplateOptions}
               onAddMedicine={addMedicineRow}
               onUpdateMedicine={updateMedicineRow}
               onRemoveMedicine={removeMedicineRow}

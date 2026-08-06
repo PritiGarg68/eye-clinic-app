@@ -57,6 +57,17 @@ const emptyWorkup: OptometristWorkup = {
   spectacleDraft: emptySpectacleAdvice,
 };
 
+const chiefComplaintQuickChips = [
+  "Diminution of vision",
+  "Redness",
+  "Watering",
+  "Itching",
+  "Pain",
+  "Headache",
+  "Routine eye check-up",
+  "Follow-up visit",
+];
+
 const historyQuickChips = [
   "Diabetes",
   "Hypertension",
@@ -89,26 +100,39 @@ export default function DoctorWorkupOverridePanel({
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<Patient["gender"]>("Male");
   const [workup, setWorkup] = useState<OptometristWorkup>(emptyWorkup);
+  const [chiefComplaintTemplateChips, setChiefComplaintTemplateChips] =
+    useState<string[]>(chiefComplaintQuickChips);
   const [historyTemplateChips, setHistoryTemplateChips] =
     useState<string[]>(historyQuickChips);
 
   useEffect(() => {
-    async function loadHistoryTemplates() {
+    async function loadTemplateChips() {
       try {
-        const templates = await fetchClinicalTemplatesFromSupabase("History");
-        const chips = templates
+        const [chiefComplaintTemplates, historyTemplates] = await Promise.all([
+          fetchClinicalTemplatesFromSupabase("Chief Complaint"),
+          fetchClinicalTemplatesFromSupabase("History"),
+        ]);
+
+        const chiefComplaintChips = chiefComplaintTemplates
+          .map((template) => template.text)
+          .filter(Boolean);
+        const historyChips = historyTemplates
           .map((template) => template.text)
           .filter(Boolean);
 
-        if (chips.length > 0) {
-          setHistoryTemplateChips(chips);
+        if (chiefComplaintChips.length > 0) {
+          setChiefComplaintTemplateChips(chiefComplaintChips);
+        }
+
+        if (historyChips.length > 0) {
+          setHistoryTemplateChips(historyChips);
         }
       } catch (error) {
-        console.error("Could not load Supabase history templates", error);
+        console.error("Could not load Supabase workup templates", error);
       }
     }
 
-    void loadHistoryTemplates();
+    void loadTemplateChips();
   }, []);
 
   useEffect(() => {
@@ -315,14 +339,14 @@ export default function DoctorWorkupOverridePanel({
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-sm font-medium text-slate-700">Patient Details</p>
 
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-4 grid gap-4 md:grid-cols-[minmax(240px,1fr)_90px_130px]">
             <label className="grid gap-2 text-sm font-medium text-slate-700">
               Name
               <input
                 type="text"
                 value={patientName}
                 onChange={(event) => setPatientName(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-slate-500"
               />
             </label>
 
@@ -332,7 +356,7 @@ export default function DoctorWorkupOverridePanel({
                 type="number"
                 value={age}
                 onChange={(event) => setAge(event.target.value)}
-                className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-slate-500"
               />
             </label>
 
@@ -343,7 +367,7 @@ export default function DoctorWorkupOverridePanel({
                 onChange={(event) =>
                   setGender(event.target.value as Patient["gender"])
                 }
-                className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                className="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-slate-500"
               >
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
@@ -368,6 +392,26 @@ export default function DoctorWorkupOverridePanel({
                 className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
               />
             </label>
+
+            {chiefComplaintTemplateChips.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {chiefComplaintTemplateChips.map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() =>
+                      updateWorkupField(
+                        "chiefComplaint",
+                        appendText(workup.chiefComplaint, chip)
+                      )
+                    }
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div>
               <p className="mb-3 text-sm font-medium text-slate-700">

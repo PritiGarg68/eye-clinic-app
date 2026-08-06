@@ -109,6 +109,17 @@ type VisionFieldKey = keyof VisionEntry;
 type SpectacleRowKey = "od" | "os" | "add";
 type SpectacleFieldKey = keyof SpectacleDraftRow;
 
+const chiefComplaintQuickChips = [
+  "Diminution of vision",
+  "Redness",
+  "Watering",
+  "Itching",
+  "Pain",
+  "Headache",
+  "Routine eye check-up",
+  "Follow-up visit",
+];
+
 const historyQuickChips = [
   "Diabetes",
   "Hypertension",
@@ -166,6 +177,8 @@ export default function OptometristPage() {
   const [selectedSupabaseQueueItem, setSelectedSupabaseQueueItem] =
     useState<QueueItem | null>(null);
   const [supabaseQueueStatus, setSupabaseQueueStatus] = useState("");
+  const [chiefComplaintTemplateChips, setChiefComplaintTemplateChips] =
+    useState<string[]>(chiefComplaintQuickChips);
   const [historyTemplateChips, setHistoryTemplateChips] =
     useState<string[]>(historyQuickChips);
 
@@ -224,22 +237,33 @@ export default function OptometristPage() {
   }, []);
 
   useEffect(() => {
-    async function loadHistoryTemplates() {
+    async function loadTemplateChips() {
       try {
-        const templates = await fetchClinicalTemplatesFromSupabase("History");
-        const chips = templates
+        const [chiefComplaintTemplates, historyTemplates] = await Promise.all([
+          fetchClinicalTemplatesFromSupabase("Chief Complaint"),
+          fetchClinicalTemplatesFromSupabase("History"),
+        ]);
+
+        const chiefComplaintChips = chiefComplaintTemplates
+          .map((template) => template.text)
+          .filter(Boolean);
+        const historyChips = historyTemplates
           .map((template) => template.text)
           .filter(Boolean);
 
-        if (chips.length > 0) {
-          setHistoryTemplateChips(chips);
+        if (chiefComplaintChips.length > 0) {
+          setChiefComplaintTemplateChips(chiefComplaintChips);
+        }
+
+        if (historyChips.length > 0) {
+          setHistoryTemplateChips(historyChips);
         }
       } catch (error) {
-        console.error("Could not load Supabase history templates", error);
+        console.error("Could not load Supabase optometrist templates", error);
       }
     }
 
-    void loadHistoryTemplates();
+    void loadTemplateChips();
   }, []);
 
   async function handleSelectSupabaseQueuePatient(item: QueueItem) {
@@ -869,6 +893,25 @@ export default function OptometristPage() {
                   placeholder="Example: redness, watering, blurred vision, pain..."
                   className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {chiefComplaintTemplateChips.map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      disabled={isFormDisabled}
+                      onClick={() =>
+                        updateSimpleField(
+                          "chiefComplaint",
+                          appendText(workup.chiefComplaint, chip)
+                        )
+                      }
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
               </label>
             </div>
 

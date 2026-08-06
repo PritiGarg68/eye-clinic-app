@@ -2014,11 +2014,28 @@ export default function DoctorPage() {
             </p>
             <a
               href="/patient-records"
-    target="_blank"
-    rel="noopener noreferrer"
+              target="_blank"
+              rel="noopener noreferrer"
               className="mt-3 block rounded-xl bg-indigo-700 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-indigo-800"
             >
               Records / Reprints
+            </a>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-sm font-semibold text-emerald-900">
+              Admin Masters
+            </p>
+            <p className="mt-1 text-xs text-emerald-800">
+              Manage clinical chips for doctor and optometrist.
+            </p>
+            <a
+              href="/admin/masters"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 block rounded-xl bg-emerald-700 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-emerald-800"
+            >
+              Manage Masters
             </a>
           </div>
         </div>

@@ -672,9 +672,14 @@ export default function OptometristPage() {
                     type="button"
                     onClick={() => handleSelectSupabaseQueuePatient(item)}
                     className={`rounded-xl border p-3 text-left transition ${
-                      selectedSupabaseQueueItem?.id === item.id
-                        ? "border-emerald-500 bg-white shadow-sm"
-                        : "border-emerald-100 bg-white/70 hover:bg-white"
+                      item.status === "Needs Optometry Review" ||
+                      item.status === "Dilated Waiting"
+                        ? selectedSupabaseQueueItem?.id === item.id
+                          ? "border-amber-500 bg-amber-50 shadow-sm ring-2 ring-amber-200"
+                          : "border-amber-300 bg-amber-50 hover:bg-amber-100"
+                        : selectedSupabaseQueueItem?.id === item.id
+                          ? "border-emerald-500 bg-white shadow-sm"
+                          : "border-emerald-100 bg-white/70 hover:bg-white"
                     }`}
                   >
                     <p className="text-sm font-semibold text-slate-900">
@@ -1088,9 +1093,15 @@ export default function OptometristPage() {
               </div>
             </div>
 
-            {workupSaved && (
-              <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900 shadow-sm">
-                {statusMessage || "Workup draft saved for selected patient."}
+            {statusMessage && (
+              <div
+                className={`rounded-xl border-2 p-4 text-sm font-semibold shadow-sm ${
+                  workupSaved
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                    : "border-amber-300 bg-amber-50 text-amber-900"
+                }`}
+              >
+                {statusMessage}
               </div>
             )}
 

@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient";
 
-export type SimpleMasterType = "Frequency" | "Duration";
+export type SimpleMasterType = "Frequency" | "Duration" | "Patient Source";
 
 export type SimpleMasterItem = {
   id: string;
@@ -14,6 +14,7 @@ type SimpleMasterRow = {
   id: string;
   frequency_label?: string | null;
   duration_label?: string | null;
+  source_name?: string | null;
   sort_order: number | null;
   is_active: boolean | null;
 };
@@ -26,9 +27,16 @@ function getConfiguration(masterType: SimpleMasterType) {
     } as const;
   }
 
+  if (masterType === "Duration") {
+    return {
+      tableName: "duration_master",
+      labelColumn: "duration_label",
+    } as const;
+  }
+
   return {
-    tableName: "duration_master",
-    labelColumn: "duration_label",
+    tableName: "patient_sources",
+    labelColumn: "source_name",
   } as const;
 }
 
@@ -42,7 +50,9 @@ function mapSimpleMaster(
     label:
       masterType === "Frequency"
         ? row.frequency_label || ""
-        : row.duration_label || "",
+        : masterType === "Duration"
+          ? row.duration_label || ""
+          : row.source_name || "",
     sortOrder: row.sort_order ?? 1,
     isActive: row.is_active ?? true,
   };

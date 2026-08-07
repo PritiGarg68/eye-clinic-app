@@ -28,6 +28,7 @@ type AdminMasterSection =
   | "Medicines"
   | "Frequencies"
   | "Durations"
+  | "Patient Sources"
   | ClinicalTemplateType;
 
 type StatusTone = "info" | "success" | "error";
@@ -355,6 +356,11 @@ export default function AdminMastersPage() {
                   description: "Common treatment-duration values.",
                 },
                 {
+                  section: "Patient Sources",
+                  label: "Patient Sources",
+                  description: "How new patients originally found the clinic.",
+                },
+                {
                   section: "Chief Complaint",
                   label: "Chief Complaint",
                   description: getTypeDescription("Chief Complaint"),
@@ -407,7 +413,8 @@ export default function AdminMastersPage() {
                     if (
                       item.section !== "Medicines" &&
                       item.section !== "Frequencies" &&
-                      item.section !== "Durations"
+                      item.section !== "Durations" &&
+                      item.section !== "Patient Sources"
                     ) {
                       setSelectedType(item.section);
                     }
@@ -446,9 +453,14 @@ export default function AdminMastersPage() {
             <SimpleMasterPanel masterType="Duration" />
           )}
 
+          {selectedSection === "Patient Sources" && (
+            <SimpleMasterPanel masterType="Patient Source" />
+          )}
+
           {selectedSection !== "Medicines" &&
             selectedSection !== "Frequencies" &&
-            selectedSection !== "Durations" && (
+            selectedSection !== "Durations" &&
+            selectedSection !== "Patient Sources" && (
               <SectionCard
                 title={`${selectedType} Templates`}
                 subtitle={`${activeCount} active of ${templates.length} total`}

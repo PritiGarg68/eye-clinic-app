@@ -353,7 +353,9 @@ export default function SimpleMasterPanel({
                 placeholder={
                   masterType === "Frequency"
                     ? "Example: Four times daily"
-                    : "Example: 1 week"
+                    : masterType === "Duration"
+                      ? "Example: 1 week"
+                      : "Example: Google"
                 }
                 className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-indigo-500"
               />

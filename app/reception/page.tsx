@@ -725,8 +725,15 @@ export default function ReceptionPage() {
     });
 
     setVisitType(selectedSupabaseQueueItem.visitType);
-    setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
-    setDiscountAmount("0");
+    setConsultationFee(
+      String(
+        selectedSupabaseQueueItem.consultationGrossAmount ??
+          selectedSupabaseQueueItem.amountPaid
+      )
+    );
+    setDiscountAmount(
+      String(selectedSupabaseQueueItem.consultationDiscountAmount ?? 0)
+    );
 
     if (selectedSupabaseQueueItem.paymentMode !== "None") {
       setPaymentMode(selectedSupabaseQueueItem.paymentMode);
@@ -1244,7 +1251,10 @@ export default function ReceptionPage() {
           consultationFee={Number(consultationFee) || 0}
           discount={Number(discountAmount) || 0}
           amountPaid={amountPayable}
-          receiptNumberOverride={latestSupabaseCheckIn?.receiptNumber}
+          receiptNumberOverride={
+            latestSupabaseCheckIn?.receiptNumber ||
+            supabaseQueueItemBeingEdited?.consultationReceiptNumber
+          }
         />
       </div>
     );
@@ -2260,7 +2270,10 @@ export default function ReceptionPage() {
                     consultationFee={Number(consultationFee) || 0}
                     discount={Number(discountAmount) || 0}
                     amountPaid={amountPayable}
-                    receiptNumberOverride={latestSupabaseCheckIn?.receiptNumber}
+                    receiptNumberOverride={
+            latestSupabaseCheckIn?.receiptNumber ||
+            supabaseQueueItemBeingEdited?.consultationReceiptNumber
+          }
                   />
                 </div>
               )}

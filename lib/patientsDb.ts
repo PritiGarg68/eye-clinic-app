@@ -72,6 +72,24 @@ export async function searchPatientsFromSupabase(
   return ((data || []) as PatientRow[]).map(mapPatientRow);
 }
 
+export async function fetchPatientByIdFromSupabase(
+  patientId: string
+): Promise<SupabasePatient | null> {
+  const { data, error } = await supabase
+    .from("patients")
+    .select(
+      "id, uhid, full_name, mobile, age_years, date_of_birth, gender, address, patient_source_id, referral_notes, created_at"
+    )
+    .eq("id", patientId)
+    .maybeSingle<PatientRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? mapPatientRow(data) : null;
+}
+
 export type CreatePatientInput = {
   fullName: string;
   mobile: string;
@@ -113,6 +131,8 @@ export type UpdatePatientInput = {
   fullName: string;
   ageYears: number;
   gender: "Male" | "Female" | "Other";
+  patientSourceId?: string | null;
+  referralNotes?: string | null;
 };
 
 export async function updatePatientInSupabase(
@@ -124,6 +144,12 @@ export async function updatePatientInSupabase(
       full_name: input.fullName.trim(),
       age_years: input.ageYears,
       gender: input.gender,
+      ...(input.patientSourceId !== undefined
+        ? { patient_source_id: input.patientSourceId || null }
+        : {}),
+      ...(input.referralNotes !== undefined
+        ? { referral_notes: input.referralNotes?.trim() || null }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.patientId)

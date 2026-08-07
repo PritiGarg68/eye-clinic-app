@@ -22,8 +22,14 @@ import {
 import {
   SupabasePatient,
   createPatientInSupabase,
+  fetchPatientByIdFromSupabase,
   searchPatientsFromSupabase,
+  updatePatientInSupabase,
 } from "../../lib/patientsDb";
+import {
+  PatientSource,
+  fetchActivePatientSourcesFromSupabase,
+} from "../../lib/patientSourcesDb";
 import {
   ConsultationCheckInResult,
   PaymentMode as SupabasePaymentMode,
@@ -73,6 +79,10 @@ export default function ReceptionPage() {
   );
   const [editingSupabaseQueueItem, setEditingSupabaseQueueItem] =
     useState<QueueItem | null>(null);
+  const [editingSupabasePatientRecord, setEditingSupabasePatientRecord] =
+    useState<SupabasePatient | null>(null);
+  const [editablePatientSourceId, setEditablePatientSourceId] = useState("");
+  const [editableReferralNotes, setEditableReferralNotes] = useState("");
   const [editablePatientDetails, setEditablePatientDetails] =
     useState<EditablePatientDetails>({
       name: "",
@@ -89,7 +99,10 @@ export default function ReceptionPage() {
     "Male" | "Female" | "Other"
   >("Male");
   const [newPatientAddress, setNewPatientAddress] = useState("");
+  const [newPatientSourceId, setNewPatientSourceId] = useState("");
   const [newPatientNotes, setNewPatientNotes] = useState("");
+  const [patientSources, setPatientSources] = useState<PatientSource[]>([]);
+  const [patientSourcesStatus, setPatientSourcesStatus] = useState("");
 
   const [visitType, setVisitType] =
     useState<VisitType>("New Patient Visit");
@@ -172,6 +185,39 @@ export default function ReceptionPage() {
     selectedPatient && isSupabasePatient(selectedPatient)
       ? supabaseQueueItems.find((item) => item.uhid === selectedPatient.uhid)
       : null;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPatientSources() {
+      try {
+        const sources = await fetchActivePatientSourcesFromSupabase();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPatientSources(sources);
+        setPatientSourcesStatus("");
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setPatientSourcesStatus(
+          error instanceof Error
+            ? `Could not load patient sources: ${error.message}`
+            : "Could not load patient sources."
+        );
+      }
+    }
+
+    void loadPatientSources();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -292,6 +338,33 @@ export default function ReceptionPage() {
     0
   );
 
+  const selectedSupabasePatientRecord =
+    selectedPatient && isSupabasePatient(selectedPatient)
+      ? supabasePatientResults.find(
+          (patient) => patient.id === selectedPatient.id
+        ) || null
+      : null;
+
+  const selectedPatientSourceName =
+    selectedSupabasePatientRecord?.patientSourceId
+      ? patientSources.find(
+          (source) =>
+            source.id === selectedSupabasePatientRecord.patientSourceId
+        )?.name || ""
+      : "";
+
+  const editingPatientSourceName =
+    editingSupabasePatientRecord?.patientSourceId
+      ? patientSources.find(
+          (source) =>
+            source.id === editingSupabasePatientRecord.patientSourceId
+        )?.name || ""
+      : "";
+
+  const canEditOriginalPatientSource =
+    supabaseQueueItemBeingEdited?.visitType === "New Patient Visit" &&
+    supabaseQueueItemBeingEdited?.status === "Waiting";
+
   function mapSupabasePatientToPatient(patient: SupabasePatient): Patient {
     return {
       id: patient.id,
@@ -403,12 +476,16 @@ export default function ReceptionPage() {
     setNewPatientAge("");
     setNewPatientGender("Male");
     setNewPatientAddress("");
+    setNewPatientSourceId("");
     setNewPatientNotes("");
   }
 
   function resetQueueEditState() {
     setEditingQueueItemId(null);
     setEditingSupabaseQueueItem(null);
+    setEditingSupabasePatientRecord(null);
+    setEditablePatientSourceId("");
+    setEditableReferralNotes("");
     setEditablePatientDetails({
       name: "",
       age: "",
@@ -492,12 +569,17 @@ export default function ReceptionPage() {
   }
 
   async function handleCreateSupabasePatient() {
-    if (!newPatientName || !newPatientMobile || !newPatientAge) {
-      alert("Please enter name, mobile number, and age.");
+    if (
+      !newPatientName ||
+      !newPatientMobile ||
+      !newPatientAge ||
+      !newPatientSourceId
+    ) {
+      alert("Please enter name, mobile number, age, and patient source.");
       return;
     }
 
-    setSupabasePatientSearchStatus("Creating patient in Supabase...");
+    setSupabasePatientSearchStatus("Creating patient...");
 
     try {
       const createdPatient = await createPatientInSupabase({
@@ -506,6 +588,7 @@ export default function ReceptionPage() {
         ageYears: Number(newPatientAge),
         gender: newPatientGender,
         address: newPatientAddress,
+        patientSourceId: newPatientSourceId,
         referralNotes: newPatientNotes,
       });
 
@@ -522,14 +605,14 @@ export default function ReceptionPage() {
       setShowReceiptPreview(false);
       setSupabasePatientResults([createdPatient]);
       setSupabasePatientSearchStatus(
-        `Created Supabase patient ${createdPatient.uhid}.`
+        `Patient ${createdPatient.uhid} created successfully.`
       );
       resetQueueEditState();
     } catch (error) {
       setSupabasePatientSearchStatus(
         error instanceof Error
-          ? `Supabase patient creation error: ${error.message}`
-          : "Supabase patient creation error."
+          ? `Patient creation error: ${error.message}`
+          : "Patient creation error."
       );
     }
   }
@@ -579,9 +662,9 @@ export default function ReceptionPage() {
     setShowReceiptPreview(false);
   }
 
-  function handleEditSelectedSupabaseQueuePatient() {
+  async function handleEditSelectedSupabaseQueuePatient() {
     if (!selectedSupabaseQueueItem) {
-      alert("Please select a patient from the Supabase queue first.");
+      alert("Please select a patient from the queue first.");
       return;
     }
 
@@ -593,7 +676,7 @@ export default function ReceptionPage() {
     }
 
     if (!selectedSupabaseQueueItem.patientId) {
-      alert("Selected Supabase queue patient is missing patient id.");
+      alert("Selected queue patient is missing patient id.");
       return;
     }
 
@@ -601,6 +684,29 @@ export default function ReceptionPage() {
     setEditingQueueItemId(null);
     setSelectedPatient(null);
     setShowRegistrationForm(false);
+    setEditingSupabasePatientRecord(null);
+    setEditablePatientSourceId("");
+    setEditableReferralNotes("");
+
+    try {
+      const patientRecord = await fetchPatientByIdFromSupabase(
+        selectedSupabaseQueueItem.patientId
+      );
+
+      setEditingSupabasePatientRecord(patientRecord);
+      setEditablePatientSourceId(patientRecord?.patientSourceId || "");
+      setEditableReferralNotes(patientRecord?.referralNotes || "");
+    } catch (error) {
+      setEditingSupabasePatientRecord(null);
+      setEditablePatientSourceId("");
+      setEditableReferralNotes("");
+
+      setSupabaseCheckInStatus(
+        error instanceof Error
+          ? `Could not load patient details: ${error.message}`
+          : "Could not load patient details."
+      );
+    }
 
     setEditablePatientDetails({
       name: selectedSupabaseQueueItem.patientName,
@@ -622,7 +728,7 @@ export default function ReceptionPage() {
     setShowReceiptPreview(false);
     setLatestSupabaseCheckIn(null);
     setSupabaseCheckInStatus(
-      `Editing original Supabase check-in for token #${selectedSupabaseQueueItem.tokenNumber}.`
+      `Editing original check-in for token #${selectedSupabaseQueueItem.tokenNumber}.`
     );
   }
 
@@ -642,9 +748,28 @@ export default function ReceptionPage() {
       return;
     }
 
-    setSupabaseCheckInStatus("Saving Supabase check-in corrections...");
+    setSupabaseCheckInStatus("Saving check-in corrections...");
 
     try {
+      if (
+        canEditOriginalPatientSource &&
+        supabaseQueueItemBeingEdited.patientId
+      ) {
+        if (!editablePatientSourceId) {
+          alert("Please select the original patient source.");
+          return;
+        }
+
+        await updatePatientInSupabase({
+          patientId: supabaseQueueItemBeingEdited.patientId,
+          fullName: editablePatientDetails.name,
+          ageYears: Number(editablePatientDetails.age),
+          gender: editablePatientDetails.gender,
+          patientSourceId: editablePatientSourceId,
+          referralNotes: editableReferralNotes,
+        });
+      }
+
       const result = await updateReceptionCheckIn({
         visitId: supabaseQueueItemBeingEdited.id,
         fullName: editablePatientDetails.name,
@@ -678,8 +803,8 @@ export default function ReceptionPage() {
     } catch (error) {
       setSupabaseCheckInStatus(
         error instanceof Error
-          ? `Supabase check-in update error: ${error.message}`
-          : "Supabase check-in update error."
+          ? `Check-in update error: ${error.message}`
+          : "Check-in update error."
       );
     }
   }
@@ -1622,14 +1747,42 @@ export default function ReceptionPage() {
                       className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 md:col-span-2"
                     />
 
-                    <textarea
-                      value={newPatientNotes}
-                      onChange={(event) =>
-                        setNewPatientNotes(event.target.value)
-                      }
-                      placeholder="Notes optional"
-                      className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500 md:col-span-2"
-                    />
+                    <label className="grid gap-2 text-sm font-medium text-slate-700">
+                      Patient Source *
+                      <select
+                        value={newPatientSourceId}
+                        onChange={(event) =>
+                          setNewPatientSourceId(event.target.value)
+                        }
+                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                      >
+                        <option value="">Select patient source</option>
+                        {patientSources.map((source) => (
+                          <option key={source.id} value={source.id}>
+                            {source.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="grid gap-2 text-sm font-medium text-slate-700">
+                      Referral Details / Notes
+                      <input
+                        type="text"
+                        value={newPatientNotes}
+                        onChange={(event) =>
+                          setNewPatientNotes(event.target.value)
+                        }
+                        placeholder="Optional"
+                        className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                      />
+                    </label>
+
+                    {patientSourcesStatus && (
+                      <p className="text-sm text-red-600 md:col-span-2">
+                        {patientSourcesStatus}
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-3">
@@ -1637,7 +1790,7 @@ export default function ReceptionPage() {
                       onClick={handleCreateSupabasePatient}
                       className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
                     >
-                      Save Patient to Supabase
+                      Save Patient
                     </button>
 
                     <button
@@ -1717,6 +1870,64 @@ export default function ReceptionPage() {
                         <option value="Other">Other</option>
                       </select>
                     </label>
+
+                    {editingSupabasePatientRecord && canEditOriginalPatientSource && (
+                      <>
+                        <label className="grid gap-2 text-sm font-medium text-slate-700">
+                          Original Patient Source *
+                          <select
+                            value={editablePatientSourceId}
+                            onChange={(event) =>
+                              setEditablePatientSourceId(event.target.value)
+                            }
+                            className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                          >
+                            <option value="">Select patient source</option>
+                            {patientSources.map((source) => (
+                              <option key={source.id} value={source.id}>
+                                {source.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="grid gap-2 text-sm font-medium text-slate-700 md:col-span-2">
+                          Referral Details / Notes
+                          <input
+                            type="text"
+                            value={editableReferralNotes}
+                            onChange={(event) =>
+                              setEditableReferralNotes(event.target.value)
+                            }
+                            placeholder="Optional"
+                            className="rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500"
+                          />
+                        </label>
+                      </>
+                    )}
+
+                    {editingSupabasePatientRecord && !canEditOriginalPatientSource && (
+                      <>
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                            Original Source
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-slate-800">
+                            {editingPatientSourceName || "Not recorded"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 md:col-span-2">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                            Referral Details / Notes
+                          </p>
+                          <p className="mt-1 text-sm text-slate-700">
+                            {editingSupabasePatientRecord.referralNotes ||
+                              "No referral details recorded"}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {!canEditPayment && (
@@ -1748,8 +1959,18 @@ export default function ReceptionPage() {
                         {selectedPatient.uhid} · {selectedPatient.mobile}
                       </p>
 
+                      {selectedPatientSourceName && (
+                        <p className="mt-2 text-sm text-slate-600">
+                          <span className="font-medium">Original Source:</span>{" "}
+                          {selectedPatientSourceName}
+                        </p>
+                      )}
+
                       {selectedPatient.notes && (
-                        <p className="mt-2 text-sm text-slate-500">
+                        <p className="mt-1 text-sm text-slate-500">
+                          <span className="font-medium">
+                            Referral Details / Notes:
+                          </span>{" "}
                           {selectedPatient.notes}
                         </p>
                       )}

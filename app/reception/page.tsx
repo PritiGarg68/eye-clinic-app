@@ -11,6 +11,7 @@ import { useQueue } from "../components/QueueProvider";
 import { samplePatients } from "../../lib/samplePatients";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
+import { fetchDefaultConsultationFeeFromServices } from "../../lib/servicesDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import { collectAdditionalServicePaymentInSupabase } from "../../lib/additionalServiceRequestDb";
@@ -223,14 +224,23 @@ export default function ReceptionPage() {
     let isMounted = true;
 
     async function loadClinicSettings() {
-      const settings = await fetchClinicSettings();
+      const [settings, consultationFeeFromServices] = await Promise.all([
+        fetchClinicSettings(),
+        fetchDefaultConsultationFeeFromServices(),
+      ]);
 
       if (!isMounted) {
         return;
       }
 
-      setActiveClinicSettings(settings);
-      setConsultationFee(String(settings.defaultConsultationFee));
+      const effectiveSettings = {
+        ...settings,
+        defaultConsultationFee:
+          consultationFeeFromServices ?? settings.defaultConsultationFee,
+      };
+
+      setActiveClinicSettings(effectiveSettings);
+      setConsultationFee(String(effectiveSettings.defaultConsultationFee));
     }
 
     loadClinicSettings();
@@ -1064,7 +1074,13 @@ export default function ReceptionPage() {
       paidAt: new Date().toISOString(),
     });
     setReceiptGenerated(true);
-    setShowReceiptPreview(true);
+    setShowReceiptPreview(false);
+    setIsPrintingReceipt(true);
+
+    setTimeout(() => {
+      window.print();
+      setIsPrintingReceipt(false);
+    }, 150);
   }
 
   async function handleCollectAdditionalPaymentAndPrint(

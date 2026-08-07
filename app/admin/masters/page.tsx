@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
 import SectionCard from "../../components/SectionCard";
 import MedicineMasterPanel from "../../components/MedicineMasterPanel";
+import ServicesMasterPanel from "../../components/ServicesMasterPanel";
 import SimpleMasterPanel from "../../components/SimpleMasterPanel";
 import {
   ClinicalTemplate,
@@ -26,6 +27,7 @@ const templateTypes: ClinicalTemplateType[] = [
 
 type AdminMasterSection =
   | "Medicines"
+  | "Services"
   | "Frequencies"
   | "Durations"
   | "Patient Sources"
@@ -346,6 +348,12 @@ export default function AdminMastersPage() {
                     "Medicine names and optional prescribing suggestions.",
                 },
                 {
+                  section: "Services",
+                  label: "Services",
+                  description:
+                    "Consultation fees, tests, procedures, prices, and routing.",
+                },
+                {
                   section: "Frequencies",
                   label: "Frequencies",
                   description: "Common dose-frequency values.",
@@ -412,6 +420,7 @@ export default function AdminMastersPage() {
 
                     if (
                       item.section !== "Medicines" &&
+                      item.section !== "Services" &&
                       item.section !== "Frequencies" &&
                       item.section !== "Durations" &&
                       item.section !== "Patient Sources"
@@ -445,6 +454,8 @@ export default function AdminMastersPage() {
         <div className="min-w-0">
           {selectedSection === "Medicines" && <MedicineMasterPanel />}
 
+          {selectedSection === "Services" && <ServicesMasterPanel />}
+
           {selectedSection === "Frequencies" && (
             <SimpleMasterPanel masterType="Frequency" />
           )}
@@ -458,6 +469,7 @@ export default function AdminMastersPage() {
           )}
 
           {selectedSection !== "Medicines" &&
+            selectedSection !== "Services" &&
             selectedSection !== "Frequencies" &&
             selectedSection !== "Durations" &&
             selectedSection !== "Patient Sources" && (

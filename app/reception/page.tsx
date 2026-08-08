@@ -1283,7 +1283,9 @@ export default function ReceptionPage() {
       <div className="mb-6 flex justify-end">
         <Link
           href="/reports"
-          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-xl border border-slate-700 bg-slate-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
         >
           Reports
         </Link>
@@ -1303,7 +1305,7 @@ export default function ReceptionPage() {
                 onClick={handleLoadSupabaseQueue}
                 className="mt-3 rounded-xl bg-blue-700 px-4 py-3 text-sm font-medium text-white hover:bg-blue-800"
               >
-                Refresh Supabase Queue
+                Refresh Queue
               </button>
 
               {supabaseQueueStatus && (

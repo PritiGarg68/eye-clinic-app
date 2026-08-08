@@ -1782,7 +1782,9 @@ export default function DoctorPage() {
       <div className="mb-6 flex justify-end">
         <Link
           href="/reports"
-          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-xl border border-slate-700 bg-slate-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
         >
           Reports
         </Link>
@@ -1794,6 +1796,15 @@ export default function DoctorPage() {
             title="Supabase Doctor Queue"
             subtitle="Active patients first, completed today at bottom"
           >
+            <div className="mb-3 flex justify-end">
+              <button
+                onClick={loadSupabaseDoctorQueue}
+                className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Refresh Queue
+              </button>
+            </div>
+
             {supabaseDoctorQueueStatus && (
               <p className="mb-3 text-xs font-medium text-slate-500">
                 {supabaseDoctorQueueStatus}

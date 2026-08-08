@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
@@ -1278,6 +1280,14 @@ export default function ReceptionPage() {
       title="Reception Workspace"
       subtitle="Patient search, registration, payment, receipt, and queue entry"
     >
+      <div className="mb-6 flex justify-end">
+        <Link
+          href="/reports"
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          Reports
+        </Link>
+      </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <SectionCard title="Live Queue" subtitle="Reception queue overview">
           <div className="mb-4">

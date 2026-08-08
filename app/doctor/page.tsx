@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useRef, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
@@ -1777,6 +1779,15 @@ export default function DoctorPage() {
       title="Doctor / Admin Workspace"
       subtitle="Consultation, prescriptions, patient history, reports, and master data"
     >
+      <div className="mb-6 flex justify-end">
+        <Link
+          href="/reports"
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        >
+          Reports
+        </Link>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)_180px]">
         <div className="grid min-w-0 gap-6">
           <SectionCard

@@ -19,6 +19,10 @@ import {
   PatientAttachment,
   fetchPatientAttachmentsFromSupabase,
 } from "../../lib/patientAttachmentsDb";
+import {
+  createGeneratedDocumentSignedUrl,
+  fetchGeneratedDocumentForVisit,
+} from "../../lib/generatedDocumentsDb";
 
 function formatDateTime(value: string) {
   if (!value) {
@@ -392,7 +396,36 @@ export default function PatientRecordsPage() {
     }, 150);
   }
 
-  function handlePrintPrescription(visit: PatientRecordVisit) {
+  async function handlePrintPrescription(visit: PatientRecordVisit) {
+    try {
+      const generatedDocument = await fetchGeneratedDocumentForVisit(
+        visit.visitId,
+        "Prescription"
+      );
+
+      if (generatedDocument) {
+        const signedUrl =
+          await createGeneratedDocumentSignedUrl(generatedDocument);
+
+        const openedWindow = window.open(
+          signedUrl,
+          "_blank",
+          "noopener,noreferrer"
+        );
+
+        if (!openedWindow) {
+          alert("Could not open the stored prescription PDF.");
+        }
+
+        return;
+      }
+    } catch (error) {
+      console.warn(
+        "Could not open stored prescription PDF; using reconstructed print fallback.",
+        error
+      );
+    }
+
     setPrintingPrescription(visit);
 
     setTimeout(() => {

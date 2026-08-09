@@ -119,6 +119,29 @@ export async function upsertGeneratedDocumentToSupabase(input: {
   return mapGeneratedDocument(data);
 }
 
+export async function fetchGeneratedDocumentForVisit(
+  visitId: string,
+  documentType: Extract<
+    GeneratedDocumentType,
+    "Prescription" | "Spectacle Prescription"
+  >
+): Promise<GeneratedDocument | null> {
+  const { data, error } = await supabase
+    .from("generated_documents")
+    .select(
+      "id, patient_id, visit_id, payment_id, document_type, file_name, file_type, file_size_bytes, storage_bucket, storage_path, generated_at, created_at, updated_at"
+    )
+    .eq("visit_id", visitId)
+    .eq("document_type", documentType)
+    .maybeSingle<GeneratedDocumentRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? mapGeneratedDocument(data) : null;
+}
+
 export async function createGeneratedDocumentSignedUrl(
   document: GeneratedDocument,
   expiresInSeconds = 300

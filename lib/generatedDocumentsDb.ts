@@ -121,10 +121,7 @@ export async function upsertGeneratedDocumentToSupabase(input: {
 
 export async function fetchGeneratedDocumentForVisit(
   visitId: string,
-  documentType: Extract<
-    GeneratedDocumentType,
-    "Prescription" | "Spectacle Prescription"
-  >
+  documentType: GeneratedDocumentType
 ): Promise<GeneratedDocument | null> {
   const { data, error } = await supabase
     .from("generated_documents")
@@ -132,6 +129,29 @@ export async function fetchGeneratedDocumentForVisit(
       "id, patient_id, visit_id, payment_id, document_type, file_name, file_type, file_size_bytes, storage_bucket, storage_path, generated_at, created_at, updated_at"
     )
     .eq("visit_id", visitId)
+    .eq("document_type", documentType)
+    .maybeSingle<GeneratedDocumentRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? mapGeneratedDocument(data) : null;
+}
+
+export async function fetchGeneratedReceiptForPayment(
+  paymentId: string,
+  documentType: Extract<
+    GeneratedDocumentType,
+    "Consultation Receipt" | "Additional Service Receipt"
+  >
+): Promise<GeneratedDocument | null> {
+  const { data, error } = await supabase
+    .from("generated_documents")
+    .select(
+      "id, patient_id, visit_id, payment_id, document_type, file_name, file_type, file_size_bytes, storage_bucket, storage_path, generated_at, created_at, updated_at"
+    )
+    .eq("payment_id", paymentId)
     .eq("document_type", documentType)
     .maybeSingle<GeneratedDocumentRow>();
 

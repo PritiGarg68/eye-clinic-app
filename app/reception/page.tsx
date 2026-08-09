@@ -3,10 +3,13 @@
 import Link from "next/link";
 
 import { useEffect, useMemo, useState } from "react";
+import { pdf } from "@react-pdf/renderer";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import ReceiptPreview from "../components/ReceiptPreview";
+import ConsultationReceiptPdfDocument from "../components/ConsultationReceiptPdfDocument";
+import AdditionalServiceReceiptPdfDocument from "../components/AdditionalServiceReceiptPdfDocument";
 import AdditionalPaymentPendingCard from "../components/AdditionalPaymentPendingCard";
 import AdditionalServiceReceiptPreview from "../components/AdditionalServiceReceiptPreview";
 import { useQueue } from "../components/QueueProvider";
@@ -17,6 +20,7 @@ import { fetchDefaultConsultationFeeFromServices } from "../../lib/servicesDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import { collectAdditionalServicePaymentInSupabase } from "../../lib/additionalServiceRequestDb";
+import { upsertGeneratedDocumentToSupabase } from "../../lib/generatedDocumentsDb";
 import {
   FreeFollowUpEntitlement,
   consumeFreeFollowUpEntitlement,
@@ -805,6 +809,56 @@ export default function ReceptionPage() {
             : mapReceptionPaymentModeToSupabase(effectivePaymentMode),
       });
 
+      let consultationReceiptPdfWarning = "";
+
+      try {
+        const receiptPatient: Patient = {
+          id:
+            supabaseQueueItemBeingEdited.patientId ||
+            result.patientId,
+          name: editablePatientDetails.name,
+          age: Number(editablePatientDetails.age),
+          gender: editablePatientDetails.gender,
+          mobile:
+            editingSupabasePatientRecord?.mobile ||
+            supabaseQueueItemBeingEdited.mobile ||
+            "",
+          uhid: supabaseQueueItemBeingEdited.uhid,
+          createdAt:
+            editingSupabasePatientRecord?.createdAt ||
+            new Date().toISOString(),
+        };
+
+        const receiptPdfBlob = await pdf(
+          <ConsultationReceiptPdfDocument
+            patient={receiptPatient}
+            visitType={visitType}
+            paymentMode={effectivePaymentMode}
+            grossAmount={result.grossAmount}
+            discountAmount={result.discountAmount}
+            netAmount={result.netAmount}
+            receiptNumber={result.receiptNumber}
+            paidAt={result.paidAt}
+            clinicSettings={activeClinicSettings}
+          />
+        ).toBlob();
+
+        await upsertGeneratedDocumentToSupabase({
+          patientId: result.patientId,
+          visitId: result.visitId,
+          paymentId: result.paymentId,
+          documentType: "Consultation Receipt",
+          fileName: `Consultation-Receipt-${supabaseQueueItemBeingEdited.uhid}-${result.receiptNumber}.pdf`,
+          storagePath: `${result.patientId}/${result.visitId}/receipts/${result.paymentId}.pdf`,
+          pdfBlob: receiptPdfBlob,
+        });
+      } catch (pdfError) {
+        consultationReceiptPdfWarning =
+          pdfError instanceof Error
+            ? ` Consultation receipt PDF warning: ${pdfError.message}`
+            : " Consultation receipt PDF could not be updated.";
+      }
+
       const queue = await fetchTodayQueueFromSupabase();
       const refreshedItem =
         queue.find((item) => item.id === result.visitId) || null;
@@ -817,7 +871,7 @@ export default function ReceptionPage() {
       setReceiptGenerated(true);
       setShowReceiptPreview(true);
       setSupabaseCheckInStatus(
-        `Updated token #${result.tokenNumber}. Receipt ${result.receiptNumber} remains unchanged.`
+        `Updated token #${result.tokenNumber}. Receipt ${result.receiptNumber} remains unchanged. Stored consultation receipt PDF updated.${consultationReceiptPdfWarning}`
       );
     } catch (error) {
       setSupabaseCheckInStatus(
@@ -916,6 +970,39 @@ export default function ReceptionPage() {
         setFreeFollowUpStatus("Free follow-up entitlement used for this visit.");
       }
 
+      let consultationReceiptPdfWarning = "";
+
+      try {
+        const receiptPdfBlob = await pdf(
+          <ConsultationReceiptPdfDocument
+            patient={selectedPatient}
+            visitType={visitType}
+            paymentMode={effectivePaymentMode}
+            grossAmount={result.grossAmount}
+            discountAmount={result.discountAmount}
+            netAmount={result.netAmount}
+            receiptNumber={result.receiptNumber}
+            paidAt={result.paidAt}
+            clinicSettings={activeClinicSettings}
+          />
+        ).toBlob();
+
+        await upsertGeneratedDocumentToSupabase({
+          patientId: result.patientId,
+          visitId: result.visitId,
+          paymentId: result.paymentId,
+          documentType: "Consultation Receipt",
+          fileName: `Consultation-Receipt-${selectedPatient.uhid}-${result.receiptNumber}.pdf`,
+          storagePath: `${result.patientId}/${result.visitId}/receipts/${result.paymentId}.pdf`,
+          pdfBlob: receiptPdfBlob,
+        });
+      } catch (pdfError) {
+        consultationReceiptPdfWarning =
+          pdfError instanceof Error
+            ? ` Consultation receipt PDF warning: ${pdfError.message}`
+            : " Consultation receipt PDF could not be stored.";
+      }
+
       const queue = await fetchTodayQueueFromSupabase();
 
       setLatestSupabaseCheckIn(result);
@@ -924,7 +1011,7 @@ export default function ReceptionPage() {
       setReceiptGenerated(true);
       setShowReceiptPreview(true);
       setSupabaseCheckInStatus(
-        `Supabase check-in created: token #${result.tokenNumber}, receipt ${result.receiptNumber}.`
+        `Supabase check-in created: token #${result.tokenNumber}, receipt ${result.receiptNumber}. Final consultation receipt PDF stored.${consultationReceiptPdfWarning}`
       );
     } catch (error) {
       const errorMessage =
@@ -1124,6 +1211,36 @@ export default function ReceptionPage() {
           receiptNumber: collectedPayment.receipt_number,
         };
 
+        let additionalReceiptPdfWarning = "";
+
+        try {
+          const additionalReceiptPdfBlob = await pdf(
+            <AdditionalServiceReceiptPdfDocument
+              patient={activeItem}
+              serviceRequest={paidService}
+              paymentMode={additionalPaymentMode}
+              receiptNumber={collectedPayment.receipt_number}
+              paidAt={collectedPayment.paid_at}
+              clinicSettings={activeClinicSettings}
+            />
+          ).toBlob();
+
+          await upsertGeneratedDocumentToSupabase({
+            patientId: collectedPayment.patient_id,
+            visitId: collectedPayment.visit_id,
+            paymentId: collectedPayment.payment_id,
+            documentType: "Additional Service Receipt",
+            fileName: `Additional-Service-Receipt-${activeItem.uhid}-${collectedPayment.receipt_number}.pdf`,
+            storagePath: `${collectedPayment.patient_id}/${collectedPayment.visit_id}/receipts/${collectedPayment.payment_id}.pdf`,
+            pdfBlob: additionalReceiptPdfBlob,
+          });
+        } catch (pdfError) {
+          additionalReceiptPdfWarning =
+            pdfError instanceof Error
+              ? ` Additional receipt PDF warning: ${pdfError.message}`
+              : " Additional receipt PDF could not be stored.";
+        }
+
         setAdditionalReceiptService(paidService);
         setShowReceiptPreview(false);
         setReceiptGenerated(false);
@@ -1137,7 +1254,7 @@ export default function ReceptionPage() {
 
         setSelectedSupabaseQueueItem(refreshedSelected);
         setSupabaseQueueStatus(
-          `Collected additional payment receipt ${collectedPayment.receipt_number}. Patient routed to ${collectedPayment.visit_status}.`
+          `Collected additional payment receipt ${collectedPayment.receipt_number}. Patient routed to ${collectedPayment.visit_status}. Final additional service receipt PDF stored.${additionalReceiptPdfWarning}`
         );
 
         setIsPrintingAdditionalReceipt(true);

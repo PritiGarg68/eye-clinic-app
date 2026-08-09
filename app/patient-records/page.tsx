@@ -22,6 +22,7 @@ import {
 import {
   createGeneratedDocumentSignedUrl,
   fetchGeneratedDocumentForVisit,
+  fetchGeneratedReceiptForPayment,
 } from "../../lib/generatedDocumentsDb";
 
 function formatDateTime(value: string) {
@@ -384,10 +385,40 @@ export default function PatientRecordsPage() {
     }
   }
 
-  function handlePrintReceipt(
+  async function handlePrintReceipt(
     visit: PatientRecordVisit,
     payment: PatientRecordPayment
   ) {
+    const documentType =
+      payment.paymentType === "Consultation"
+        ? "Consultation Receipt"
+        : "Additional Service Receipt";
+
+    try {
+      const generatedDocument = await fetchGeneratedReceiptForPayment(
+        payment.id,
+        documentType
+      );
+
+      if (generatedDocument) {
+        const signedUrl =
+          await createGeneratedDocumentSignedUrl(generatedDocument);
+
+        window.open(
+          signedUrl,
+          "_blank",
+          "noopener,noreferrer"
+        );
+
+        return;
+      }
+    } catch (error) {
+      console.warn(
+        "Could not open stored receipt PDF; using reconstructed print fallback.",
+        error
+      );
+    }
+
     setPrintingReceipt({ visit, payment });
 
     setTimeout(() => {

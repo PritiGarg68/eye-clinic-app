@@ -407,15 +407,11 @@ export default function PatientRecordsPage() {
         const signedUrl =
           await createGeneratedDocumentSignedUrl(generatedDocument);
 
-        const openedWindow = window.open(
+        window.open(
           signedUrl,
           "_blank",
           "noopener,noreferrer"
         );
-
-        if (!openedWindow) {
-          alert("Could not open the stored prescription PDF.");
-        }
 
         return;
       }
@@ -434,7 +430,32 @@ export default function PatientRecordsPage() {
     }, 150);
   }
 
-  function handlePrintSpectacleAdvice(visit: PatientRecordVisit) {
+  async function handlePrintSpectacleAdvice(visit: PatientRecordVisit) {
+    try {
+      const generatedDocument = await fetchGeneratedDocumentForVisit(
+        visit.visitId,
+        "Spectacle Prescription"
+      );
+
+      if (generatedDocument) {
+        const signedUrl =
+          await createGeneratedDocumentSignedUrl(generatedDocument);
+
+        window.open(
+          signedUrl,
+          "_blank",
+          "noopener,noreferrer"
+        );
+
+        return;
+      }
+    } catch (error) {
+      console.warn(
+        "Could not open stored spectacle prescription PDF; using reconstructed print fallback.",
+        error
+      );
+    }
+
     setPrintingSpectacleAdvice(visit);
 
     setTimeout(() => {

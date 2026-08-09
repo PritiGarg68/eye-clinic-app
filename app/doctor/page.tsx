@@ -10,6 +10,7 @@ import QueuePanel from "../components/QueuePanel";
 import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
 import PrescriptionPdfDocument from "../components/PrescriptionPdfDocument";
+import SpectaclePdfDocument from "../components/SpectaclePdfDocument";
 import MedicineEditor from "../components/MedicineEditor";
 import ClinicalTemplatePicker from "../components/ClinicalTemplatePicker";
 import PatientHistoryPanel from "../components/PatientHistoryPanel";
@@ -40,7 +41,10 @@ import {
 } from "../../lib/simpleMasterDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
 import { upsertFreeFollowUpEntitlementForVisit } from "../../lib/followUpEntitlementDb";
-import { upsertGeneratedDocumentToSupabase } from "../../lib/generatedDocumentsDb";
+import {
+  deleteGeneratedDocumentForVisit,
+  upsertGeneratedDocumentToSupabase,
+} from "../../lib/generatedDocumentsDb";
 import {
   completeDoctorConsultationInSupabase,
   fetchDoctorConsultationFromSupabase,
@@ -1281,19 +1285,20 @@ export default function DoctorPage() {
         };
 
         let prescriptionPdfWarning = "";
+        let spectaclePdfWarning = "";
+
+        const finalizedDocumentDate = selectedSupabaseQueueItem.visitDate
+          ? new Date(
+              `${selectedSupabaseQueueItem.visitDate}T00:00:00`
+            ).toLocaleDateString("en-IN")
+          : new Date().toLocaleDateString("en-IN");
 
         try {
-          const prescriptionDate = selectedSupabaseQueueItem.visitDate
-            ? new Date(
-                `${selectedSupabaseQueueItem.visitDate}T00:00:00`
-              ).toLocaleDateString("en-IN")
-            : new Date().toLocaleDateString("en-IN");
-
           const prescriptionPdfBlob = await pdf(
             <PrescriptionPdfDocument
               patient={updatedItem}
               clinicSettings={activeClinicSettings}
-              dateText={prescriptionDate}
+              dateText={finalizedDocumentDate}
               logoSrc={`${window.location.origin}/clinic-logo.png`}
             />
           ).toBlob();
@@ -1313,6 +1318,41 @@ export default function DoctorPage() {
               : "Unknown PDF generation/storage error.";
         }
 
+        try {
+          if (
+            hasSpectacleAdviceValues(
+              savedConsultation.finalSpectacleAdvice
+            )
+          ) {
+            const spectaclePdfBlob = await pdf(
+              <SpectaclePdfDocument
+                patient={updatedItem}
+                clinicSettings={activeClinicSettings}
+                dateText={finalizedDocumentDate}
+              />
+            ).toBlob();
+
+            await upsertGeneratedDocumentToSupabase({
+              patientId: selectedSupabaseQueueItem.patientId,
+              visitId: selectedSupabaseQueueItem.id,
+              documentType: "Spectacle Prescription",
+              fileName: `Spectacle-Prescription-${selectedSupabaseQueueItem.uhid}.pdf`,
+              storagePath: `${selectedSupabaseQueueItem.patientId}/${selectedSupabaseQueueItem.id}/spectacle-prescription.pdf`,
+              pdfBlob: spectaclePdfBlob,
+            });
+          } else {
+            await deleteGeneratedDocumentForVisit(
+              selectedSupabaseQueueItem.id,
+              "Spectacle Prescription"
+            );
+          }
+        } catch (pdfError) {
+          spectaclePdfWarning =
+            pdfError instanceof Error
+              ? pdfError.message
+              : "Unknown spectacle PDF generation/storage error.";
+        }
+
         setSelectedSupabaseQueueItem(updatedItem);
         setSupabaseDoctorQueueItems((current) =>
           sortDoctorQueueWithCompletedLast(
@@ -1325,15 +1365,32 @@ export default function DoctorPage() {
         setConsultation(savedConsultation);
         setConsultationSaved(true);
 
-        if (prescriptionPdfWarning) {
+        if (prescriptionPdfWarning || spectaclePdfWarning) {
+          const warnings = [
+            prescriptionPdfWarning
+              ? `Prescription PDF: ${prescriptionPdfWarning}`
+              : "",
+            spectaclePdfWarning
+              ? `Spectacle PDF: ${spectaclePdfWarning}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
           setStatusMessage(
-            `Consultation completed, but finalized prescription PDF could not be stored: ${prescriptionPdfWarning}`
+            `Consultation completed, but one or more finalized PDFs could not be stored: ${warnings}`
           );
         } else {
+          const spectacleMessage = hasSpectacleAdviceValues(
+            savedConsultation.finalSpectacleAdvice
+          )
+            ? " Final spectacle PDF stored."
+            : "";
+
           setStatusMessage(
             entitlement
-              ? `Supabase consultation completed. Free follow-up valid until ${entitlement.validUntil}. Final prescription PDF stored.`
-              : "Supabase consultation completed. Patient moved to Completed Today. Final prescription PDF stored."
+              ? `Supabase consultation completed. Free follow-up valid until ${entitlement.validUntil}. Final prescription PDF stored.${spectacleMessage}`
+              : `Supabase consultation completed. Patient moved to Completed Today. Final prescription PDF stored.${spectacleMessage}`
           );
         }
         setShowPrescriptionPreview(false);

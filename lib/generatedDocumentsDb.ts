@@ -142,6 +142,40 @@ export async function fetchGeneratedDocumentForVisit(
   return data ? mapGeneratedDocument(data) : null;
 }
 
+export async function deleteGeneratedDocumentForVisit(
+  visitId: string,
+  documentType: Extract<
+    GeneratedDocumentType,
+    "Prescription" | "Spectacle Prescription"
+  >
+): Promise<void> {
+  const existingDocument = await fetchGeneratedDocumentForVisit(
+    visitId,
+    documentType
+  );
+
+  if (!existingDocument) {
+    return;
+  }
+
+  const { error: storageError } = await supabase.storage
+    .from(existingDocument.storageBucket)
+    .remove([existingDocument.storagePath]);
+
+  if (storageError) {
+    throw new Error(storageError.message);
+  }
+
+  const { error: metadataError } = await supabase
+    .from("generated_documents")
+    .delete()
+    .eq("id", existingDocument.id);
+
+  if (metadataError) {
+    throw new Error(metadataError.message);
+  }
+}
+
 export async function createGeneratedDocumentSignedUrl(
   document: GeneratedDocument,
   expiresInSeconds = 300

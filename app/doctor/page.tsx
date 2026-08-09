@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 
+import { pdf } from "@react-pdf/renderer";
 import { useEffect, useRef, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
 import QueuePanel from "../components/QueuePanel";
 import SpectacleTable from "../components/SpectacleTable";
 import PrescriptionPreview from "../components/PrescriptionPreview";
+import PrescriptionPdfDocument from "../components/PrescriptionPdfDocument";
 import MedicineEditor from "../components/MedicineEditor";
 import ClinicalTemplatePicker from "../components/ClinicalTemplatePicker";
 import PatientHistoryPanel from "../components/PatientHistoryPanel";
@@ -38,6 +40,7 @@ import {
 } from "../../lib/simpleMasterDb";
 import { updatePatientInSupabase } from "../../lib/patientsDb";
 import { upsertFreeFollowUpEntitlementForVisit } from "../../lib/followUpEntitlementDb";
+import { upsertGeneratedDocumentToSupabase } from "../../lib/generatedDocumentsDb";
 import {
   completeDoctorConsultationInSupabase,
   fetchDoctorConsultationFromSupabase,
@@ -449,6 +452,10 @@ export default function DoctorPage() {
 
   useEffect(() => {
     void loadSupabaseDoctorQueue();
+  }, []);
+
+  useEffect(() => {
+    void fetchClinicSettings().then(setActiveClinicSettings);
   }, []);
 
   useEffect(() => {
@@ -1273,6 +1280,39 @@ export default function DoctorPage() {
           doctorConsultation: savedConsultation,
         };
 
+        let prescriptionPdfWarning = "";
+
+        try {
+          const prescriptionDate = selectedSupabaseQueueItem.visitDate
+            ? new Date(
+                `${selectedSupabaseQueueItem.visitDate}T00:00:00`
+              ).toLocaleDateString("en-IN")
+            : new Date().toLocaleDateString("en-IN");
+
+          const prescriptionPdfBlob = await pdf(
+            <PrescriptionPdfDocument
+              patient={updatedItem}
+              clinicSettings={activeClinicSettings}
+              dateText={prescriptionDate}
+              logoSrc={`${window.location.origin}/clinic-logo.png`}
+            />
+          ).toBlob();
+
+          await upsertGeneratedDocumentToSupabase({
+            patientId: selectedSupabaseQueueItem.patientId,
+            visitId: selectedSupabaseQueueItem.id,
+            documentType: "Prescription",
+            fileName: `Prescription-${selectedSupabaseQueueItem.uhid}.pdf`,
+            storagePath: `${selectedSupabaseQueueItem.patientId}/${selectedSupabaseQueueItem.id}/prescription.pdf`,
+            pdfBlob: prescriptionPdfBlob,
+          });
+        } catch (pdfError) {
+          prescriptionPdfWarning =
+            pdfError instanceof Error
+              ? pdfError.message
+              : "Unknown PDF generation/storage error.";
+        }
+
         setSelectedSupabaseQueueItem(updatedItem);
         setSupabaseDoctorQueueItems((current) =>
           sortDoctorQueueWithCompletedLast(
@@ -1284,11 +1324,18 @@ export default function DoctorPage() {
 
         setConsultation(savedConsultation);
         setConsultationSaved(true);
-        setStatusMessage(
-          entitlement
-            ? `Supabase consultation completed. Free follow-up valid until ${entitlement.validUntil}.`
-            : "Supabase consultation completed. Patient moved to Completed Today."
-        );
+
+        if (prescriptionPdfWarning) {
+          setStatusMessage(
+            `Consultation completed, but finalized prescription PDF could not be stored: ${prescriptionPdfWarning}`
+          );
+        } else {
+          setStatusMessage(
+            entitlement
+              ? `Supabase consultation completed. Free follow-up valid until ${entitlement.validUntil}. Final prescription PDF stored.`
+              : "Supabase consultation completed. Patient moved to Completed Today. Final prescription PDF stored."
+          );
+        }
         setShowPrescriptionPreview(false);
         await loadSupabaseDoctorQueue();
       } catch (error) {

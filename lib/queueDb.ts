@@ -34,6 +34,7 @@ type SupabasePaymentMode =
 
 type QueueVisitRow = {
   id: string;
+  visit_date: string;
   token_number: number;
   visit_type: SupabaseVisitType;
   status: SupabaseVisitStatus;
@@ -169,6 +170,7 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
     .select(
       `
         id,
+        visit_date,
         token_number,
         visit_type,
         status,
@@ -231,6 +233,7 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
     return {
       id: visit.id,
       patientId: patient?.id,
+      visitDate: visit.visit_date,
       tokenNumber: visit.token_number,
       patientName: patient?.full_name || "Unknown Patient",
       age: patient?.age_years || 0,

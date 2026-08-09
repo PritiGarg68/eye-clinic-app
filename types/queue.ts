@@ -106,6 +106,7 @@ export type DoctorConsultation = {
 export type QueueItem = {
   id: string;
   patientId?: string;
+  visitDate?: string;
   tokenNumber: number;
   patientName: string;
   age: number;

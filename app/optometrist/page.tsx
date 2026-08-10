@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
-import QueuePanel from "../components/QueuePanel";
 import PatientAttachmentsPanel from "../components/PatientAttachmentsPanel";
 import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
-import { useQueue } from "../components/QueueProvider";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
   fetchTodayQueueFromSupabase,
@@ -162,13 +160,6 @@ function hasDoctorSendBackReviewNote(item: QueueItem | null | undefined) {
 
 
 export default function OptometristPage() {
-  const {
-    queueItems,
-    selectedQueueItem,
-    selectQueueItem,
-    updateQueueItemStatus,
-    saveOptometristWorkup,
-  } = useQueue();
 
   const [statusMessage, setStatusMessage] = useState("");
   const [workupSaved, setWorkupSaved] = useState(false);
@@ -182,7 +173,7 @@ export default function OptometristPage() {
   const [historyTemplateChips, setHistoryTemplateChips] =
     useState<string[]>(historyQuickChips);
 
-  const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
+  const activeQueueItem = selectedSupabaseQueueItem;
   const paidAdditionalServices = getPaidAdditionalServices(activeQueueItem);
   const hasDoctorSendBackReview =
     activeQueueItem?.status === "Needs Optometry Review" &&
@@ -199,7 +190,7 @@ export default function OptometristPage() {
   const isFormDisabled = !activeQueueItem || isReadOnly;
 
   async function loadSupabaseOptometristQueue() {
-    setSupabaseQueueStatus("Loading Supabase optometrist queue...");
+    setSupabaseQueueStatus("Loading optometrist queue...");
 
     try {
       const queue = await fetchTodayQueueFromSupabase();
@@ -220,14 +211,14 @@ export default function OptometristPage() {
 
       setSupabaseQueueStatus(
         optometryQueue.length === 0
-          ? "No Supabase patients currently waiting for optometry."
-          : `Loaded ${optometryQueue.length} Supabase optometry queue patient(s).`
+          ? "No patients currently waiting for optometry."
+          : `Loaded ${optometryQueue.length} optometry queue patient(s).`
       );
     } catch (error) {
       setSupabaseQueueStatus(
         error instanceof Error
           ? error.message
-          : "Could not load Supabase optometrist queue."
+          : "Could not load optometrist queue."
       );
     }
   }
@@ -268,10 +259,9 @@ export default function OptometristPage() {
 
   async function handleSelectSupabaseQueuePatient(item: QueueItem) {
     setSelectedSupabaseQueueItem(item);
-    selectQueueItem(null);
     setWorkup(normalizeWorkup(item.optometristWorkup));
     setWorkupSaved(false);
-    setStatusMessage(`Selected Supabase patient #${item.tokenNumber}.`);
+    setStatusMessage(`Selected patient #${item.tokenNumber}.`);
 
     try {
       const savedWorkup = await fetchOptometristWorkupFromSupabase(item.id);
@@ -279,14 +269,14 @@ export default function OptometristPage() {
       if (savedWorkup) {
         setWorkup(normalizeWorkup(savedWorkup));
         setStatusMessage(
-          `Loaded saved Supabase workup for token #${item.tokenNumber}.`
+          `Loaded saved workup for token #${item.tokenNumber}.`
         );
       }
     } catch (error) {
       setStatusMessage(
         error instanceof Error
           ? error.message
-          : "Could not load saved Supabase workup."
+          : "Could not load saved workup."
       );
     }
   }
@@ -297,10 +287,6 @@ export default function OptometristPage() {
     setStatusMessage("");
   }, [activeQueueItem?.id, activeQueueItem?.optometristWorkup]);
 
-  function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
-    setSelectedSupabaseQueueItem(null);
-    selectQueueItem(item);
-  }
 
   function updateSimpleField<K extends keyof OptometristWorkup>(
     field: K,
@@ -394,22 +380,17 @@ export default function OptometristPage() {
             item.id === updatedItem.id ? updatedItem : item
           )
         );
-        setStatusMessage("Supabase status updated to Under Optometry.");
+        setStatusMessage("Status updated to Under Optometry.");
         await loadSupabaseOptometristQueue();
       } catch (error) {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not update Supabase status."
+            : "Could not update status."
         );
       }
 
       return;
-    }
-
-    if (selectedQueueItem) {
-      updateQueueItemStatus(selectedQueueItem.id, "Under Optometry");
-      setStatusMessage("Status updated to Under Optometry.");
     }
   }
 
@@ -438,7 +419,7 @@ export default function OptometristPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -466,30 +447,23 @@ export default function OptometristPage() {
           )
         );
         setStatusMessage(
-          "Dilation completed. Supabase patient marked Ready for Doctor."
+          "Dilation completed. Patient marked Ready for Doctor."
         );
         setWorkupSaved(true);
         await loadSupabaseOptometristQueue();
         setStatusMessage(
-          "Dilation completed. Supabase patient marked Ready for Doctor."
+          "Dilation completed. Patient marked Ready for Doctor."
         );
       } catch (error) {
         setWorkupSaved(false);
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not mark Supabase patient Ready for Doctor."
+            : "Could not mark patient Ready for Doctor."
         );
       }
 
       return;
-    }
-
-    if (selectedQueueItem) {
-      saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
-      updateQueueItemStatus(selectedQueueItem.id, "Ready for Doctor");
-      setStatusMessage("Dilation completed. Patient marked Ready for Doctor.");
-      setWorkupSaved(true);
     }
   }
 
@@ -522,7 +496,7 @@ export default function OptometristPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -552,8 +526,8 @@ export default function OptometristPage() {
 
         setStatusMessage(
           nextStatus === "Dilated Waiting"
-            ? "Supabase workup saved. Patient remains in Dilated Waiting."
-            : "Supabase workup saved. Patient marked Ready for Doctor."
+            ? "Workup saved. Patient remains in Dilated Waiting."
+            : "Workup saved. Patient marked Ready for Doctor."
         );
         setWorkupSaved(true);
         await loadSupabaseOptometristQueue();
@@ -562,22 +536,11 @@ export default function OptometristPage() {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not update Supabase workup status."
+            : "Could not update workup status."
         );
       }
 
       return;
-    }
-
-    if (selectedQueueItem) {
-      saveOptometristWorkup(selectedQueueItem.id, workup);
-      updateQueueItemStatus(selectedQueueItem.id, nextStatus);
-      setStatusMessage(
-        nextStatus === "Dilated Waiting"
-          ? "Dilation is pending. Patient remains in Dilated Waiting until dilation is marked Done."
-          : "Patient marked Ready for Doctor."
-      );
-      setWorkupSaved(true);
     }
   }
 
@@ -596,7 +559,7 @@ export default function OptometristPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -608,23 +571,17 @@ export default function OptometristPage() {
         });
 
         setWorkupSaved(true);
-        setStatusMessage("Supabase optometrist workup draft saved.");
+        setStatusMessage("Optometrist workup draft saved.");
       } catch (error) {
         setWorkupSaved(false);
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not save Supabase optometrist workup."
+            : "Could not save optometrist workup."
         );
       }
 
       return;
-    }
-
-    if (selectedQueueItem) {
-      saveOptometristWorkup(selectedQueueItem.id, workup);
-      setWorkupSaved(true);
-      setStatusMessage("Optometrist workup draft saved.");
     }
   }
 
@@ -643,10 +600,10 @@ export default function OptometristPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-emerald-900">
-                  Supabase Optometrist Queue
+                  Optometrist Queue
                 </p>
                 <p className="mt-1 text-xs text-emerald-700">
-                  Database queue source for optometry migration.
+                  Patients currently waiting for optometrist workup.
                 </p>
               </div>
 
@@ -736,7 +693,7 @@ export default function OptometristPage() {
             {selectedSupabaseQueueItem && (
               <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
-                  Selected Supabase Patient
+                  Selected Patient
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-900">
                   #{selectedSupabaseQueueItem.tokenNumber} ·{" "}
@@ -749,20 +706,7 @@ export default function OptometristPage() {
             )}
           </div>
 
-          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-              Temporary Local Queue
-            </p>
-            <p className="mt-1 text-xs text-amber-700">
-              Local browser queue remains available during migration.
-            </p>
-          </div>
 
-          <QueuePanel
-            items={sortQueueForRole(queueItems, "optometrist")}
-            selectedItemId={selectedQueueItem?.id}
-            onSelectItem={handleSelectPatientFromQueue}
-          />
           </SectionCard>
 
           <SectionCard

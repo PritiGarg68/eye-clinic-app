@@ -17,6 +17,7 @@ type DoctorConsultationRow = {
   notes: string | null;
   follow_up_date: string | null;
   free_follow_up_valid_until: string | null;
+  optometrist_spectacle_baseline_json: unknown;
   status: DoctorConsultationStatus;
   started_at: string | null;
   completed_at: string | null;
@@ -135,6 +136,15 @@ function mapDoctorConsultationFromDatabase(input: {
         remarks: input.spectaclePrescription?.remarks || "",
       }
     ),
+    optometristSpectacleBaseline:
+      input.consultation.optometrist_spectacle_baseline_json &&
+      typeof input.consultation.optometrist_spectacle_baseline_json === "object" &&
+      !Array.isArray(input.consultation.optometrist_spectacle_baseline_json)
+        ? normalizeSpectacleAdvice(
+            input.consultation
+              .optometrist_spectacle_baseline_json as Partial<SpectacleAdvice>
+          )
+        : undefined,
     updatedAt: input.consultation.updated_at,
   };
 }
@@ -240,6 +250,8 @@ export async function saveDoctorConsultationDraftToSupabase(input: {
         follow_up_date: input.consultation.followUpDate || null,
         free_follow_up_valid_until:
           input.consultation.freeFollowUpValidUntil || null,
+        optometrist_spectacle_baseline_json:
+          input.consultation.optometristSpectacleBaseline || null,
         status: "Draft",
         started_at: now,
         updated_at: now,
@@ -249,7 +261,7 @@ export async function saveDoctorConsultationDraftToSupabase(input: {
       }
     )
     .select(
-      "id, visit_id, patient_id, findings, diagnosis, advice, notes, follow_up_date, free_follow_up_valid_until, status, started_at, completed_at, created_at, updated_at"
+      "id, visit_id, patient_id, findings, diagnosis, advice, notes, follow_up_date, free_follow_up_valid_until, optometrist_spectacle_baseline_json, status, started_at, completed_at, created_at, updated_at"
     )
     .single<DoctorConsultationRow>();
 
@@ -335,7 +347,7 @@ export async function fetchDoctorConsultationFromSupabase(
   const { data: consultationRow, error: consultationError } = await supabase
     .from("doctor_consultations")
     .select(
-      "id, visit_id, patient_id, findings, diagnosis, advice, notes, follow_up_date, free_follow_up_valid_until, status, started_at, completed_at, created_at, updated_at"
+      "id, visit_id, patient_id, findings, diagnosis, advice, notes, follow_up_date, free_follow_up_valid_until, optometrist_spectacle_baseline_json, status, started_at, completed_at, created_at, updated_at"
     )
     .eq("visit_id", visitId)
     .maybeSingle<DoctorConsultationRow>();

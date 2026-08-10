@@ -19,7 +19,7 @@ import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import DoctorActionPanel from "../components/DoctorActionPanel";
 import DoctorWorkupOverridePanel from "../components/DoctorWorkupOverridePanel";
 import AdditionalServiceRequestPanel from "../components/AdditionalServiceRequestPanel";
-import { useQueue } from "../components/QueueProvider";
+
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
   fetchTodayQueueFromSupabase,
@@ -239,11 +239,148 @@ function normalizeConsultation(
     diagnosis: savedConsultation?.diagnosis || "",
     medicines: savedConsultation?.medicines || [],
     finalSpectacleAdvice: normalizeSpectacleAdvice(finalSpectacleAdvice),
+    optometristSpectacleBaseline:
+      savedConsultation?.optometristSpectacleBaseline ||
+      (optometristDraft
+        ? normalizeSpectacleAdvice(optometristDraft)
+        : undefined),
   };
 }
 
 type SpectacleRowKey = "od" | "os" | "add";
 type SpectacleFieldKey = keyof SpectacleDraftRow;
+
+type SpectacleConflict = {
+  fieldLabel: string;
+  doctorValue: string;
+  optometristValue: string;
+};
+
+type SpectacleMergeResult = {
+  mergedAdvice: SpectacleAdvice;
+  optometristChanged: boolean;
+  conflicts: SpectacleConflict[];
+};
+
+function spectacleValueEquals(left?: string, right?: string) {
+  return String(left || "").trim() === String(right || "").trim();
+}
+
+function mergeReturnedOptometristSpectacleDraft(input: {
+  baseline?: SpectacleAdvice;
+  doctorAdvice: SpectacleAdvice;
+  latestOptometristDraft: SpectacleAdvice;
+}): SpectacleMergeResult {
+  const doctorAdvice = normalizeSpectacleAdvice(input.doctorAdvice);
+  const latestOptometristDraft = normalizeSpectacleAdvice(
+    input.latestOptometristDraft
+  );
+
+  if (!input.baseline) {
+    return {
+      mergedAdvice: doctorAdvice,
+      optometristChanged: false,
+      conflicts: [],
+    };
+  }
+
+  const baseline = normalizeSpectacleAdvice(input.baseline);
+  const mergedAdvice = normalizeSpectacleAdvice(doctorAdvice);
+  const conflicts: SpectacleConflict[] = [];
+  let optometristChanged = false;
+
+  const rowLabels: Record<SpectacleRowKey, string> = {
+    od: "OD",
+    os: "OS",
+    add: "Add",
+  };
+
+  const fieldLabels: Record<SpectacleFieldKey, string> = {
+    sph: "Sphere",
+    cyl: "Cylinder",
+    axis: "Axis",
+    vision: "Vision",
+  };
+
+  const rowKeys: SpectacleRowKey[] = ["od", "os", "add"];
+  const fieldKeys: SpectacleFieldKey[] = ["sph", "cyl", "axis", "vision"];
+
+  for (const rowKey of rowKeys) {
+    for (const fieldKey of fieldKeys) {
+      const baselineValue = baseline[rowKey][fieldKey];
+      const doctorValue = doctorAdvice[rowKey][fieldKey];
+      const latestOptometristValue =
+        latestOptometristDraft[rowKey][fieldKey];
+
+      const doctorChanged = !spectacleValueEquals(
+        doctorValue,
+        baselineValue
+      );
+      const optometristChangedField = !spectacleValueEquals(
+        latestOptometristValue,
+        baselineValue
+      );
+
+      if (optometristChangedField) {
+        optometristChanged = true;
+      }
+
+      if (optometristChangedField && !doctorChanged) {
+        mergedAdvice[rowKey][fieldKey] = latestOptometristValue;
+        continue;
+      }
+
+      if (
+        optometristChangedField &&
+        doctorChanged &&
+        !spectacleValueEquals(doctorValue, latestOptometristValue)
+      ) {
+        conflicts.push({
+          fieldLabel: `${rowLabels[rowKey]} ${fieldLabels[fieldKey]}`,
+          doctorValue: String(doctorValue || ""),
+          optometristValue: String(latestOptometristValue || ""),
+        });
+      }
+    }
+  }
+
+  const baselineRemarks = baseline.remarks;
+  const doctorRemarks = doctorAdvice.remarks;
+  const latestOptometristRemarks = latestOptometristDraft.remarks;
+
+  const doctorChangedRemarks = !spectacleValueEquals(
+    doctorRemarks,
+    baselineRemarks
+  );
+  const optometristChangedRemarks = !spectacleValueEquals(
+    latestOptometristRemarks,
+    baselineRemarks
+  );
+
+  if (optometristChangedRemarks) {
+    optometristChanged = true;
+  }
+
+  if (optometristChangedRemarks && !doctorChangedRemarks) {
+    mergedAdvice.remarks = latestOptometristRemarks;
+  } else if (
+    optometristChangedRemarks &&
+    doctorChangedRemarks &&
+    !spectacleValueEquals(doctorRemarks, latestOptometristRemarks)
+  ) {
+    conflicts.push({
+      fieldLabel: "Remarks",
+      doctorValue: String(doctorRemarks || ""),
+      optometristValue: String(latestOptometristRemarks || ""),
+    });
+  }
+
+  return {
+    mergedAdvice,
+    optometristChanged,
+    conflicts,
+  };
+}
 
 const findingQuickChips = [
   "Conjunctival congestion",
@@ -335,21 +472,19 @@ function sortDoctorQueueWithCompletedLast(items: QueueItem[]) {
   });
 }
 
+type SpectacleReviewNotice = {
+  kind: "updated" | "conflict";
+  message: string;
+  conflicts?: SpectacleConflict[];
+};
+
 export default function DoctorPage() {
   const [activeClinicSettings, setActiveClinicSettings] =
     useState(clinicSettings);
-  const {
-    queueItems,
-    selectedQueueItem,
-    selectQueueItem,
-    updateQueueItemStatus,
-    updateQueueItemPatientDetails,
-    addOrReplacePendingAdditionalServiceRequest,
-    saveOptometristWorkup,
-    saveDoctorConsultation,
-  } = useQueue();
 
   const [statusMessage, setStatusMessage] = useState("");
+  const [spectacleReviewNotice, setSpectacleReviewNotice] =
+    useState<SpectacleReviewNotice | null>(null);
   const [consultationSaved, setConsultationSaved] = useState(false);
   const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
   const [showAdditionalServicePanel, setShowAdditionalServicePanel] =
@@ -386,7 +521,7 @@ export default function DoctorPage() {
   const [instructionTemplateOptions, setInstructionTemplateOptions] =
     useState<string[]>([]);
 
-  const activeQueueItem = selectedSupabaseQueueItem || selectedQueueItem;
+  const activeQueueItem = selectedSupabaseQueueItem;
 
   const consultationActive =
     activeQueueItem?.status === "Under Consultation";
@@ -410,7 +545,7 @@ export default function DoctorPage() {
     : null;
 
   async function loadSupabaseDoctorQueue() {
-    setSupabaseDoctorQueueStatus("Loading Supabase doctor queue...");
+    setSupabaseDoctorQueueStatus("Loading doctor queue...");
 
     try {
       const queue = await fetchTodayQueueFromSupabase();
@@ -442,14 +577,14 @@ export default function DoctorPage() {
 
       setSupabaseDoctorQueueStatus(
         doctorQueue.length
-          ? `Loaded ${doctorQueue.length} Supabase doctor queue patient(s).`
+          ? `Loaded ${doctorQueue.length} doctor queue patient(s).`
           : "No patients are currently checked in."
       );
     } catch (error) {
       setSupabaseDoctorQueueStatus(
         error instanceof Error
           ? error.message
-          : "Could not load Supabase doctor queue."
+          : "Could not load doctor queue."
       );
     }
   }
@@ -580,23 +715,11 @@ export default function DoctorPage() {
     };
   }, []);
 
-  function handleSelectPatientFromQueue(item: typeof selectedQueueItem) {
-    setSelectedSupabaseQueueItem(null);
-    selectQueueItem(item);
-    setStatusMessage("");
-    setConsultationSaved(false);
-    setShowPrescriptionPreview(false);
-    setShowAdditionalServicePanel(false);
-    setAdditionalServiceMessage("");
-    setIsPrintingPrescription(false);
-    setIsPrintingSpectacleAdvice(false);
-    setIsEditingPatientWorkup(false);
-  }
 
   async function handleSelectSupabaseQueuePatient(item: QueueItem) {
     setSelectedSupabaseQueueItem(item);
-    selectQueueItem(null);
-    setStatusMessage(`Selected Supabase patient #${item.tokenNumber}.`);
+    setStatusMessage(`Selected patient #${item.tokenNumber}.`);
+    setSpectacleReviewNotice(null);
     setConsultationSaved(false);
     setShowPrescriptionPreview(false);
     setShowAdditionalServicePanel(false);
@@ -625,22 +748,63 @@ export default function DoctorPage() {
           queueItem.id === updatedItem.id ? updatedItem : queueItem
         )
       );
-      setConsultation(
-        normalizeConsultation(
-          savedConsultation || item.doctorConsultation,
-          normalizedWorkup.spectacleDraft
-        )
+      const loadedConsultation = normalizeConsultation(
+        savedConsultation || item.doctorConsultation,
+        normalizedWorkup.spectacleDraft
       );
-      setStatusMessage(
-        savedConsultation
-          ? `Loaded Supabase consultation draft for token #${item.tokenNumber}.`
-          : `Loaded Supabase optometrist workup for token #${item.tokenNumber}.`
-      );
+
+      if (savedConsultation) {
+        const spectacleMerge = mergeReturnedOptometristSpectacleDraft({
+          baseline: savedConsultation.optometristSpectacleBaseline,
+          doctorAdvice: loadedConsultation.finalSpectacleAdvice,
+          latestOptometristDraft: normalizedWorkup.spectacleDraft,
+        });
+
+        setConsultation({
+          ...loadedConsultation,
+          finalSpectacleAdvice: spectacleMerge.mergedAdvice,
+        });
+
+        if (spectacleMerge.conflicts.length > 0) {
+          const conflictFields = spectacleMerge.conflicts
+            .map((conflict) => conflict.fieldLabel)
+            .join(", ");
+          const conflictMessage =
+            `Optometrist updated the spectacle draft after your edits. ` +
+            `Your values have been preserved for: ${conflictFields}. ` +
+            `Please review before completing.`;
+
+          setSpectacleReviewNotice({
+            kind: "conflict",
+            message: conflictMessage,
+            conflicts: spectacleMerge.conflicts,
+          });
+          setStatusMessage(conflictMessage);
+        } else if (spectacleMerge.optometristChanged) {
+          const updatedMessage =
+            "Optometrist updated the spectacle draft. Non-conflicting changes have been applied to the table below. Please review before completing.";
+
+          setSpectacleReviewNotice({
+            kind: "updated",
+            message: updatedMessage,
+          });
+          setStatusMessage(updatedMessage);
+        } else {
+          setStatusMessage(
+            `Loaded consultation draft for token #${item.tokenNumber}.`
+          );
+        }
+      } else {
+        setConsultation(loadedConsultation);
+        setStatusMessage(
+          `Loaded optometrist workup for token #${item.tokenNumber}.`
+        );
+      }
     } catch (error) {
       setStatusMessage(
         error instanceof Error
           ? error.message
-          : "Could not load Supabase optometrist workup."
+          : "Could not load optometrist workup."
       );
     }
   }
@@ -759,10 +923,7 @@ export default function DoctorPage() {
       return;
     }
 
-    const otherOpenConsultations = [
-      ...supabaseDoctorQueueItems,
-      ...queueItems,
-    ].filter(
+    const otherOpenConsultations = supabaseDoctorQueueItems.filter(
       (item, index, items) =>
         item.id !== activeQueueItem.id &&
         item.status === "Under Consultation" &&
@@ -824,25 +985,20 @@ export default function DoctorPage() {
             )
           );
 
-          setStatusMessage("Supabase completed consultation reopened.");
+          setStatusMessage("Completed consultation reopened.");
           setShowPrescriptionPreview(false);
           await loadSupabaseDoctorQueue();
         } catch (error) {
           setStatusMessage(
             error instanceof Error
               ? error.message
-              : "Could not reopen Supabase consultation."
+              : "Could not reopen consultation."
           );
         }
 
         return;
       }
 
-      if (selectedQueueItem) {
-        updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
-        setStatusMessage("Completed consultation reopened.");
-        setShowPrescriptionPreview(false);
-      }
 
       return;
     }
@@ -881,25 +1037,21 @@ export default function DoctorPage() {
           )
         );
 
-        setStatusMessage("Supabase consultation started.");
+        setStatusMessage("Consultation started.");
         setShowPrescriptionPreview(false);
         await loadSupabaseDoctorQueue();
       } catch (error) {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not start Supabase consultation."
+            : "Could not start consultation."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      updateQueueItemStatus(selectedQueueItem.id, "Under Consultation");
-      setStatusMessage("Consultation started.");
-      setShowPrescriptionPreview(false);
-    }
+
   }
 
   async function handleSavePatientDetailsFromDoctor(
@@ -914,7 +1066,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -963,28 +1115,19 @@ export default function DoctorPage() {
           )
         );
 
-        setStatusMessage("Supabase patient details corrected by doctor/admin.");
+        setStatusMessage("Patient details corrected by doctor/admin.");
       } catch (error) {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not update Supabase patient details."
+            : "Could not update patient details."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      updateQueueItemPatientDetails(
-        selectedQueueItem.id,
-        patientName,
-        age,
-        gender
-      );
 
-      setStatusMessage("Patient details corrected by doctor/admin.");
-    }
   }
 
   async function handleSaveWorkupFromDoctor(workup: OptometristWorkup) {
@@ -995,7 +1138,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1046,22 +1189,19 @@ export default function DoctorPage() {
           };
         });
 
-        setStatusMessage("Supabase workup details updated by doctor/admin.");
+        setStatusMessage("Workup details updated by doctor/admin.");
       } catch (error) {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not update Supabase workup details."
+            : "Could not update workup details."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      saveOptometristWorkup(selectedQueueItem.id, workup);
-      setStatusMessage("Workup details updated by doctor/admin.");
-    }
+
   }
 
   async function handleSendBackToOptometrist() {
@@ -1096,7 +1236,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1113,9 +1253,6 @@ export default function DoctorPage() {
 
         const updatedWorkup: OptometristWorkup = {
           ...existingWorkup,
-          optometristNotes: existingWorkup.optometristNotes
-            ? `${existingWorkup.optometristNotes}\nSent back by doctor for additional optometry review.`
-            : "Sent back by doctor for additional optometry review.",
         };
 
         await saveOptometristWorkupToSupabase({
@@ -1164,11 +1301,7 @@ export default function DoctorPage() {
       return;
     }
 
-    if (selectedQueueItem) {
-      updateQueueItemStatus(selectedQueueItem.id, "Needs Optometry Review");
-      setStatusMessage("Patient sent back to optometrist for additional workup.");
-      setShowPrescriptionPreview(false);
-    }
+
   }
 
   async function handleSaveConsultationDraft() {
@@ -1179,16 +1312,22 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
       try {
+        const consultationToSave: DoctorConsultation = {
+          ...consultation,
+          optometristSpectacleBaseline:
+            selectedSupabaseQueueItem.optometristWorkup?.spectacleDraft,
+        };
+
         const savedConsultation =
           await saveDoctorConsultationDraftToSupabase({
             visitId: selectedSupabaseQueueItem.id,
             patientId: selectedSupabaseQueueItem.patientId,
-            consultation,
+            consultation: consultationToSave,
           });
 
         const consultationWithCurrentMedicines = {
@@ -1225,24 +1364,21 @@ export default function DoctorPage() {
 
         setConsultation(consultationWithCurrentMedicines);
         setConsultationSaved(true);
-        setStatusMessage("Supabase consultation draft saved.");
+        setSpectacleReviewNotice(null);
+        setStatusMessage("Consultation draft saved.");
       } catch (error) {
         setConsultationSaved(false);
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not save Supabase consultation draft."
+            : "Could not save consultation draft."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-      setConsultationSaved(true);
-      setStatusMessage("Consultation draft saved.");
-    }
+
   }
 
   async function handleCompleteConsultation() {
@@ -1261,16 +1397,22 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
       try {
+        const consultationToComplete: DoctorConsultation = {
+          ...consultation,
+          optometristSpectacleBaseline:
+            selectedSupabaseQueueItem.optometristWorkup?.spectacleDraft,
+        };
+
         const savedConsultation =
           await completeDoctorConsultationInSupabase({
             visitId: selectedSupabaseQueueItem.id,
             patientId: selectedSupabaseQueueItem.patientId,
-            consultation,
+            consultation: consultationToComplete,
           });
 
         const entitlement =
@@ -1364,6 +1506,7 @@ export default function DoctorPage() {
 
         setConsultation(savedConsultation);
         setConsultationSaved(true);
+        setSpectacleReviewNotice(null);
 
         if (prescriptionPdfWarning || spectaclePdfWarning) {
           const warnings = [
@@ -1389,8 +1532,8 @@ export default function DoctorPage() {
 
           setStatusMessage(
             entitlement
-              ? `Supabase consultation completed. Free follow-up valid until ${entitlement.validUntil}. Final prescription PDF stored.${spectacleMessage}`
-              : `Supabase consultation completed. Patient moved to Completed Today. Final prescription PDF stored.${spectacleMessage}`
+              ? `Consultation completed. Free follow-up valid until ${entitlement.validUntil}. Final prescription PDF stored.${spectacleMessage}`
+              : `Consultation completed. Patient moved to Completed Today. Final prescription PDF stored.${spectacleMessage}`
           );
         }
         setShowPrescriptionPreview(false);
@@ -1400,20 +1543,14 @@ export default function DoctorPage() {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not complete Supabase consultation."
+            : "Could not complete consultation."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-      updateQueueItemStatus(selectedQueueItem.id, "Completed");
-      setConsultationSaved(true);
-      setStatusMessage("Consultation completed.");
-      setShowPrescriptionPreview(false);
-    }
+
   }
 
   async function handlePreviewPrescription() {
@@ -1424,7 +1561,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1459,25 +1596,20 @@ export default function DoctorPage() {
         setConsultation(savedConsultation);
         setConsultationSaved(true);
         setShowPrescriptionPreview(true);
-        setStatusMessage("Prescription preview generated from Supabase-saved consultation.");
+        setStatusMessage("Prescription preview generated.");
       } catch (error) {
         setConsultationSaved(false);
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not generate Supabase prescription preview."
+            : "Could not generate prescription preview."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-      setConsultationSaved(true);
-      setShowPrescriptionPreview(true);
-      setStatusMessage("Prescription preview generated.");
-    }
+
   }
 
   async function handlePrintPrescription() {
@@ -1488,7 +1620,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1524,7 +1656,7 @@ export default function DoctorPage() {
         setConsultationSaved(true);
         setShowPrescriptionPreview(true);
         setIsPrintingPrescription(true);
-        setStatusMessage("Prescription ready for printing from Supabase-saved consultation.");
+        setStatusMessage("Prescription ready for printing.");
 
         setTimeout(() => {
           window.print();
@@ -1534,24 +1666,14 @@ export default function DoctorPage() {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not print Supabase prescription."
+            : "Could not print prescription."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-      setConsultationSaved(true);
-      setShowPrescriptionPreview(true);
-      setIsPrintingPrescription(true);
-      setStatusMessage("Prescription ready for printing.");
 
-      setTimeout(() => {
-        window.print();
-      }, 150);
-    }
   }
 
   function handleOpenAdditionalServicePanel() {
@@ -1594,7 +1716,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1663,28 +1785,6 @@ export default function DoctorPage() {
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-
-      const existingWorkup = selectedQueueItem.optometristWorkup || emptyWorkup;
-
-      const updatedWorkup: OptometristWorkup = {
-        ...existingWorkup,
-        dilationStatus: "Waiting",
-        dilationNotes: existingWorkup.dilationNotes
-          ? `${existingWorkup.dilationNotes}\nSent for dilation by doctor.`
-          : "Sent for dilation by doctor.",
-      };
-
-      saveOptometristWorkup(selectedQueueItem.id, updatedWorkup);
-      updateQueueItemStatus(selectedQueueItem.id, "Dilated Waiting");
-
-      setConsultationSaved(true);
-      setShowPrescriptionPreview(false);
-      setStatusMessage(
-        "Patient sent for dilation. Dilation status marked Waiting."
-      );
-    }
   }
 
   async function handleCreateAdditionalServiceRequest(
@@ -1697,7 +1797,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1768,29 +1868,6 @@ export default function DoctorPage() {
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-
-      addOrReplacePendingAdditionalServiceRequest(
-        selectedQueueItem.id,
-        serviceRequest
-      );
-
-      setConsultationSaved(true);
-      setShowPrescriptionPreview(false);
-      setShowAdditionalServicePanel(false);
-
-      const serviceNames = serviceRequest.services
-        .map((service) => service.serviceName)
-        .join(", ");
-
-      const message = pendingAdditionalService
-        ? `Pending request updated: ${serviceNames}. Revised amount to collect: ₹${serviceRequest.netAmount}.`
-        : `${serviceNames} sent to reception. Amount to collect: ₹${serviceRequest.netAmount}.`;
-
-      setAdditionalServiceMessage(message);
-      setStatusMessage(message);
-    }
   }
 
   async function handlePrintSpectacleAdvice() {
@@ -1801,7 +1878,7 @@ export default function DoctorPage() {
 
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
-        alert("Supabase patient ID is missing for this queue item.");
+        alert("Patient ID is missing for this queue item.");
         return;
       }
 
@@ -1827,7 +1904,7 @@ export default function DoctorPage() {
         setConsultation(savedConsultation);
         setConsultationSaved(true);
         setIsPrintingSpectacleAdvice(true);
-        setStatusMessage("Supabase spectacle advice ready for printing.");
+        setStatusMessage("Spectacle advice ready for printing.");
 
         setTimeout(() => {
           window.print();
@@ -1836,23 +1913,14 @@ export default function DoctorPage() {
         setStatusMessage(
           error instanceof Error
             ? error.message
-            : "Could not save Supabase spectacle advice for printing."
+            : "Could not save spectacle advice for printing."
         );
       }
 
       return;
     }
 
-    if (selectedQueueItem) {
-      saveDoctorConsultation(selectedQueueItem.id, consultation);
-      setConsultationSaved(true);
-      setIsPrintingSpectacleAdvice(true);
-      setStatusMessage("Spectacle advice ready for printing.");
 
-      setTimeout(() => {
-        window.print();
-      }, 150);
-    }
   }
 
   if (isPrintingPrescription) {
@@ -1897,7 +1965,7 @@ export default function DoctorPage() {
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)_180px]">
         <div className="grid min-w-0 gap-6">
           <SectionCard
-            title="Supabase Doctor Queue"
+            title="Doctor Queue"
             subtitle="Active patients first, completed today at bottom"
           >
             <div className="mb-3 flex justify-end">
@@ -1922,13 +1990,6 @@ export default function DoctorPage() {
             />
           </SectionCard>
 
-          <SectionCard title="Local Queue" subtitle="Temporary local fallback">
-            <QueuePanel
-              items={sortQueueForRole(queueItems, "doctor")}
-              selectedItemId={selectedQueueItem?.id}
-              onSelectItem={handleSelectPatientFromQueue}
-            />
-          </SectionCard>
 
           <SectionCard title="Patient Snapshot" subtitle="Current patient context">
             {activeQueueItem ? (
@@ -2092,6 +2153,47 @@ export default function DoctorPage() {
               <p className="mb-4 text-sm font-medium text-slate-700">
                 Final Spectacle Advice
               </p>
+
+              {spectacleReviewNotice && (
+                <div
+                  className={`mb-4 rounded-xl border p-3 text-sm font-medium ${
+                    spectacleReviewNotice.kind === "conflict"
+                      ? "border-red-300 bg-red-50 text-red-800"
+                      : "border-amber-300 bg-amber-50 text-amber-900"
+                  }`}
+                >
+                  <p>{spectacleReviewNotice.message}</p>
+
+                  {spectacleReviewNotice.kind === "conflict" &&
+                    spectacleReviewNotice.conflicts &&
+                    spectacleReviewNotice.conflicts.length > 0 && (
+                      <div className="mt-3 grid gap-2">
+                        {spectacleReviewNotice.conflicts.map((conflict) => (
+                          <div
+                            key={conflict.fieldLabel}
+                            className="rounded-lg border border-red-200 bg-white/70 p-3"
+                          >
+                            <p className="font-semibold">
+                              {conflict.fieldLabel}
+                            </p>
+                            <p className="mt-1 font-normal">
+                              Doctor:{" "}
+                              <span className="font-medium">
+                                {conflict.doctorValue || "—"}
+                              </span>
+                            </p>
+                            <p className="font-normal">
+                              Optometrist:{" "}
+                              <span className="font-medium">
+                                {conflict.optometristValue || "—"}
+                              </span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
+              )}
 
               <SpectacleTable
                 value={{

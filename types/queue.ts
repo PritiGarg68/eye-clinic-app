@@ -100,6 +100,7 @@ export type DoctorConsultation = {
   freeFollowUpValidUntil?: string;
   notes: string;
   finalSpectacleAdvice: SpectacleAdvice;
+  optometristSpectacleBaseline?: SpectacleAdvice;
   updatedAt?: string;
 };
 

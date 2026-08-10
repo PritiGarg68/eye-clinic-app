@@ -6,15 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import AppShell from "../components/AppShell";
 import SectionCard from "../components/SectionCard";
-import QueuePanel from "../components/QueuePanel";
 import ReceiptPreview from "../components/ReceiptPreview";
 import ConsultationReceiptPdfDocument from "../components/ConsultationReceiptPdfDocument";
 import AdditionalServiceReceiptPdfDocument from "../components/AdditionalServiceReceiptPdfDocument";
 import AdditionalPaymentPendingCard from "../components/AdditionalPaymentPendingCard";
 import AdditionalServiceReceiptPreview from "../components/AdditionalServiceReceiptPreview";
-import { useQueue } from "../components/QueueProvider";
-import { samplePatients } from "../../lib/samplePatients";
-import { sortQueueForRole } from "../../lib/queueSorting";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { fetchDefaultConsultationFeeFromServices } from "../../lib/servicesDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
@@ -60,17 +56,6 @@ type EditablePatientDetails = {
 };
 
 export default function ReceptionPage() {
-    const {
-        queueItems,
-        selectedQueueItem,
-        addQueueItem,
-        selectQueueItem,
-        clearQueueData,
-        updateQueueItemPayment,
-        updateQueueItemPatientDetails,
-        markAdditionalServicePaid,
-      } = useQueue();
-
   const [activeClinicSettings, setActiveClinicSettings] =
     useState(clinicSettings);
 
@@ -81,9 +66,6 @@ export default function ReceptionPage() {
   >([]);
   const [supabasePatientSearchStatus, setSupabasePatientSearchStatus] =
     useState("");
-  const [editingQueueItemId, setEditingQueueItemId] = useState<string | null>(
-    null
-  );
   const [editingSupabaseQueueItem, setEditingSupabaseQueueItem] =
     useState<QueueItem | null>(null);
   const [editingSupabasePatientRecord, setEditingSupabasePatientRecord] =
@@ -141,22 +123,6 @@ export default function ReceptionPage() {
   const [isPrintingAdditionalReceipt, setIsPrintingAdditionalReceipt] =
     useState(false);
 
-  const matchingPatients = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-
-    if (!term) {
-      return [];
-    }
-
-    return samplePatients.filter((patient) => {
-      return (
-        patient.mobile.includes(term) ||
-        patient.uhid.toLowerCase().includes(term) ||
-        patient.name.toLowerCase().includes(term)
-      );
-    });
-  }, [searchTerm]);
-
   const amountPayable = useMemo(() => {
     if (visitType === "Free Follow-Up") {
       return 0;
@@ -171,19 +137,14 @@ export default function ReceptionPage() {
   const effectivePaymentMode: PaymentMode =
     visitType === "Free Follow-Up" ? "None" : paymentMode;
 
-  const queueItemBeingEdited =
-    queueItems.find((item) => item.id === editingQueueItemId) || null;
-
   const supabaseQueueItemBeingEdited = editingSupabaseQueueItem;
-  const isEditingAnyQueueItem = Boolean(
-    queueItemBeingEdited || supabaseQueueItemBeingEdited
-  );
+  const isEditingAnyQueueItem = Boolean(supabaseQueueItemBeingEdited);
 
   const canEditPayment =
-    !queueItemBeingEdited || queueItemBeingEdited.status === "Waiting";
+    !supabaseQueueItemBeingEdited ||
+    supabaseQueueItemBeingEdited.status === "Waiting";
 
-  const activeReceptionQueueItem =
-    selectedSupabaseQueueItem || selectedQueueItem;
+  const activeReceptionQueueItem = selectedSupabaseQueueItem;
 
   const pendingAdditionalService =
     getPendingAdditionalService(activeReceptionQueueItem);
@@ -260,7 +221,7 @@ export default function ReceptionPage() {
     let isMounted = true;
 
     async function loadInitialSupabaseQueue() {
-      setSupabaseQueueStatus("Loading today's Supabase queue...");
+      setSupabaseQueueStatus("Loading today's queue...");
 
       try {
         const queue = await fetchTodayQueueFromSupabase();
@@ -276,7 +237,7 @@ export default function ReceptionPage() {
             ? currentSelected
             : null
         );
-        setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+        setSupabaseQueueStatus(`Loaded ${queue.length} queue item(s).`);
       } catch (error) {
         if (!isMounted) {
           return;
@@ -284,7 +245,7 @@ export default function ReceptionPage() {
 
         setSupabaseQueueStatus(
           error instanceof Error
-            ? `Error loading Supabase queue: ${error.message}`
+            ? `Error loading queue: ${error.message}`
             : "Error loading Supabase queue."
         );
       }
@@ -309,7 +270,7 @@ export default function ReceptionPage() {
     let isMounted = true;
 
     async function runSupabasePatientSearch() {
-      setSupabasePatientSearchStatus("Searching Supabase patients...");
+      setSupabasePatientSearchStatus("Searching patients...");
 
       try {
         const results = await searchPatientsFromSupabase(term);
@@ -320,7 +281,7 @@ export default function ReceptionPage() {
 
         setSupabasePatientResults(results);
         setSupabasePatientSearchStatus(
-          `Found ${results.length} Supabase patient(s).`
+          `Found ${results.length} patient(s).`
         );
       } catch (error) {
         if (!isMounted) {
@@ -330,7 +291,7 @@ export default function ReceptionPage() {
         setSupabasePatientResults([]);
         setSupabasePatientSearchStatus(
           error instanceof Error
-            ? `Supabase patient search error: ${error.message}`
+            ? `Patient search error: ${error.message}`
             : "Supabase patient search error."
         );
       }
@@ -399,17 +360,8 @@ export default function ReceptionPage() {
     void loadFreeFollowUpEntitlementForPatient(selectedPatient);
   }, [selectedPatient?.id]);
 
-  const receiptPatient: Patient | null = queueItemBeingEdited
-    ? {
-        id: queueItemBeingEdited.id,
-        uhid: queueItemBeingEdited.uhid,
-        mobile: selectedPatient?.mobile || "",
-        name: editablePatientDetails.name || queueItemBeingEdited.patientName,
-        age: Number(editablePatientDetails.age) || queueItemBeingEdited.age,
-        gender: editablePatientDetails.gender,
-        createdAt: new Date().toISOString(),
-      }
-    : selectedPatient ||
+  const receiptPatient: Patient | null =
+    selectedPatient ||
       (selectedSupabaseQueueItem
         ? {
             id: selectedSupabaseQueueItem.patientId || selectedSupabaseQueueItem.id,
@@ -497,7 +449,6 @@ export default function ReceptionPage() {
   }
 
   function resetQueueEditState() {
-    setEditingQueueItemId(null);
     setEditingSupabaseQueueItem(null);
     setEditingSupabasePatientRecord(null);
     setEditablePatientSourceId("");
@@ -554,36 +505,6 @@ export default function ReceptionPage() {
     }
   }
 
-  function handleCreateTemporaryPatient() {
-    if (!newPatientName || !newPatientMobile || !newPatientAge) {
-      alert("Please enter name, mobile number, and age.");
-      return;
-    }
-
-    const temporaryPatient: Patient = {
-      id: `temp-${Date.now()}`,
-      uhid: `EC-TEMP-${Date.now()}`,
-      mobile: newPatientMobile,
-      name: newPatientName,
-      age: Number(newPatientAge),
-      gender: newPatientGender,
-      address: newPatientAddress || undefined,
-      notes: newPatientNotes || undefined,
-      createdAt: new Date().toISOString(),
-    };
-
-    setSelectedPatient(temporaryPatient);
-    setShowRegistrationForm(false);
-    setSearchTerm(newPatientMobile);
-    setVisitType("New Patient Visit");
-    setConsultationFee(String(activeClinicSettings.defaultConsultationFee));
-    setDiscountAmount("0");
-    setPaymentMode("Cash");
-    setReceiptGenerated(false);
-    setShowReceiptPreview(false);
-    resetQueueEditState();
-  }
-
   async function handleCreateSupabasePatient() {
     if (
       !newPatientName ||
@@ -633,51 +554,6 @@ export default function ReceptionPage() {
     }
   }
 
-  function handleSelectQueueItem(item: QueueItem | null) {
-    selectQueueItem(item);
-
-    if (!item) {
-      return;
-    }
-
-    setShowRegistrationForm(false);
-    setSelectedPatient(null);
-    setReceiptGenerated(false);
-    setShowReceiptPreview(false);
-    setAdditionalPaymentMode("Cash");
-    setAdditionalReceiptService(null);
-  }
-
-  function handleEditSelectedQueuePatient() {
-    if (!selectedQueueItem) {
-      alert("Please select a patient from the queue first.");
-      return;
-    }
-
-    setEditingQueueItemId(selectedQueueItem.id);
-    setSelectedPatient(null);
-    setShowRegistrationForm(false);
-
-    setEditablePatientDetails({
-      name: selectedQueueItem.patientName,
-      age: String(selectedQueueItem.age),
-      gender: selectedQueueItem.gender,
-    });
-
-    setVisitType(selectedQueueItem.visitType);
-    setConsultationFee(String(selectedQueueItem.amountPaid));
-    setDiscountAmount("0");
-
-    if (selectedQueueItem.paymentMode !== "None") {
-      setPaymentMode(selectedQueueItem.paymentMode);
-    } else {
-      setPaymentMode("Cash");
-    }
-
-    setReceiptGenerated(false);
-    setShowReceiptPreview(false);
-  }
-
   async function handleEditSelectedSupabaseQueuePatient() {
     if (!selectedSupabaseQueueItem) {
       alert("Please select a patient from the queue first.");
@@ -697,7 +573,6 @@ export default function ReceptionPage() {
     }
 
     setEditingSupabaseQueueItem(selectedSupabaseQueueItem);
-    setEditingQueueItemId(null);
     setSelectedPatient(null);
     setShowRegistrationForm(false);
     setEditingSupabasePatientRecord(null);
@@ -757,7 +632,7 @@ export default function ReceptionPage() {
 
   async function handleSaveSupabaseQueuePatientCorrections() {
     if (!supabaseQueueItemBeingEdited) {
-      alert("Please select a Supabase queue patient to edit.");
+      alert("Please select a queue patient to edit.");
       return;
     }
 
@@ -866,7 +741,7 @@ export default function ReceptionPage() {
       setSupabaseQueueItems(queue);
       setSelectedSupabaseQueueItem(refreshedItem);
       setEditingSupabaseQueueItem(null);
-      setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+      setSupabaseQueueStatus(`Loaded ${queue.length} queue item(s).`);
       setLatestSupabaseCheckIn(result);
       setReceiptGenerated(true);
       setShowReceiptPreview(true);
@@ -882,51 +757,15 @@ export default function ReceptionPage() {
     }
   }
 
-  function handleSaveQueuePatientCorrections() {
-    if (!queueItemBeingEdited) {
-      alert("Please select a queue patient to edit.");
-      return;
-    }
-
-    if (!editablePatientDetails.name || !editablePatientDetails.age) {
-      alert("Please enter patient name and age.");
-      return;
-    }
-
-    updateQueueItemPatientDetails(
-      queueItemBeingEdited.id,
-      editablePatientDetails.name,
-      Number(editablePatientDetails.age),
-      editablePatientDetails.gender
-    );
-
-    if (canEditPayment) {
-      updateQueueItemPayment(
-        queueItemBeingEdited.id,
-        effectivePaymentMode,
-        amountPayable,
-        visitType
-      );
-    }
-
-    setReceiptGenerated(true);
-    setShowReceiptPreview(true);
-    alert(
-      canEditPayment
-        ? "Patient details and payment updated."
-        : "Patient details updated. Payment was not changed because clinical work has already started."
-    );
-  }
-
   async function handleGenerateSupabaseReceipt() {
     if (!selectedPatient) {
-      alert("Please select or register a Supabase patient first.");
+      alert("Please select or register a patient first.");
       return;
     }
 
     if (!isSupabasePatient(selectedPatient)) {
       alert(
-        "This patient is not saved in Supabase yet. Please use a Supabase search result or Save Patient to Supabase."
+        "Please select a saved patient or register a new patient first."
       );
       return;
     }
@@ -943,7 +782,7 @@ export default function ReceptionPage() {
       return;
     }
 
-    setSupabaseCheckInStatus("Creating Supabase check-in...");
+    setSupabaseCheckInStatus("Creating check-in...");
 
     try {
       const result = await createConsultationCheckIn({
@@ -1007,11 +846,11 @@ export default function ReceptionPage() {
 
       setLatestSupabaseCheckIn(result);
       setSupabaseQueueItems(queue);
-      setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+      setSupabaseQueueStatus(`Loaded ${queue.length} queue item(s).`);
       setReceiptGenerated(true);
       setShowReceiptPreview(true);
       setSupabaseCheckInStatus(
-        `Supabase check-in created: token #${result.tokenNumber}, receipt ${result.receiptNumber}. Final consultation receipt PDF stored.${consultationReceiptPdfWarning}`
+        `Check-in created: token #${result.tokenNumber}, receipt ${result.receiptNumber}. Final consultation receipt PDF stored.${consultationReceiptPdfWarning}`
       );
     } catch (error) {
       const errorMessage =
@@ -1034,7 +873,7 @@ export default function ReceptionPage() {
             ? currentSelected
             : null
         );
-        setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+        setSupabaseQueueStatus(`Loaded ${queue.length} queue item(s).`);
 
         if (existingCheckIn) {
           setLatestSupabaseCheckIn(existingCheckIn);
@@ -1047,53 +886,14 @@ export default function ReceptionPage() {
 
         setSupabaseCheckInStatus(
           resolvedTokenNumber
-            ? `This patient is already checked in today as token #${resolvedTokenNumber}. The Supabase queue has been refreshed.`
-            : "This patient is already checked in today. The Supabase queue has been refreshed."
+            ? `This patient is already checked in today as token #${resolvedTokenNumber}. The queue has been refreshed.`
+            : "This patient is already checked in today. The queue has been refreshed."
         );
         return;
       }
 
-      setSupabaseCheckInStatus(`Supabase check-in error: ${errorMessage}`);
+      setSupabaseCheckInStatus(`Check-in error: ${errorMessage}`);
     }
-  }
-
-  function handleGenerateReceipt() {
-    if (!selectedPatient) {
-      alert("Please select a patient first.");
-      return;
-    }
-
-    const existingActiveQueueItem = queueItems.find(
-      (item) =>
-        item.uhid === selectedPatient.uhid && item.status !== "Completed"
-    );
-
-    if (existingActiveQueueItem) {
-      selectQueueItem(existingActiveQueueItem);
-      alert(
-        `${selectedPatient.name} is already in the queue as token #${existingActiveQueueItem.tokenNumber}.`
-      );
-      return;
-    }
-
-    const nextTokenNumber = queueItems.length + 1;
-
-    const queueItem: QueueItem = {
-      id: `${selectedPatient.id}-${Date.now()}`,
-      tokenNumber: nextTokenNumber,
-      patientName: selectedPatient.name,
-      age: selectedPatient.age,
-      gender: selectedPatient.gender,
-      uhid: selectedPatient.uhid,
-      visitType,
-      paymentMode: effectivePaymentMode,
-      amountPaid: amountPayable,
-      status: "Waiting",
-    };
-
-    addQueueItem(queueItem);
-    setReceiptGenerated(true);
-    setShowReceiptPreview(true);
   }
 
   function handlePreviewReceipt() {
@@ -1122,7 +922,7 @@ export default function ReceptionPage() {
 
   function handleReprintSupabaseConsultationReceipt() {
     if (!selectedSupabaseQueueItem) {
-      alert("Please select a Supabase queue patient first.");
+      alert("Please select a queue patient first.");
       return;
     }
 
@@ -1182,7 +982,7 @@ export default function ReceptionPage() {
   async function handleCollectAdditionalPaymentAndPrint(
     serviceRequestId: string
   ) {
-    const activeItem = selectedSupabaseQueueItem || selectedQueueItem;
+    const activeItem = selectedSupabaseQueueItem;
 
     if (!activeItem) {
       alert("Please select a payment-pending patient first.");
@@ -1274,25 +1074,12 @@ export default function ReceptionPage() {
       return;
     }
 
-    setAdditionalReceiptService(serviceToPrint);
 
-    markAdditionalServicePaid(
-      activeItem.id,
-      serviceRequestId,
-      additionalPaymentMode
-    );
-
-    setIsPrintingAdditionalReceipt(true);
-
-    setTimeout(() => {
-      window.print();
-      setIsPrintingAdditionalReceipt(false);
-    }, 150);
   }
   function handlePrintPaidAdditionalReceipt(
     serviceRequest: AdditionalServiceRequest
   ) {
-    const activeItem = selectedSupabaseQueueItem || selectedQueueItem;
+    const activeItem = selectedSupabaseQueueItem;
 
     if (!activeItem) {
       alert("Please select a patient first.");
@@ -1311,45 +1098,23 @@ export default function ReceptionPage() {
   }
 
   async function handleLoadSupabaseQueue() {
-    setSupabaseQueueStatus("Loading today's Supabase queue...");
+    setSupabaseQueueStatus("Loading today's queue...");
 
     try {
       const queue = await fetchTodayQueueFromSupabase();
       setSupabaseQueueItems(queue);
-      setSupabaseQueueStatus(`Loaded ${queue.length} Supabase queue item(s).`);
+      setSupabaseQueueStatus(`Loaded ${queue.length} queue item(s).`);
     } catch (error) {
       setSupabaseQueueStatus(
         error instanceof Error
-          ? `Error loading Supabase queue: ${error.message}`
+          ? `Error loading queue: ${error.message}`
           : "Error loading Supabase queue."
       );
     }
   }
 
-  function handleClearLocalQueueData() {
-    const shouldClear = window.confirm(
-      "Clear local test queue data? This will remove only local queue/visit test data. Sample patients will remain."
-    );
-  
-    if (!shouldClear) {
-      return;
-    }
-  
-    clearQueueData();
-  
-    setSearchTerm("");
-    setSelectedPatient(null);
-    setShowRegistrationForm(false);
-    resetNewPatientForm();
-    resetPaymentState();
-    resetQueueEditState();
-    setAdditionalPaymentMode("Cash");
-    setAdditionalReceiptService(null);
-  
-    alert("Local test queue data cleared.");
-  }
   function handleStartNextPatient() {
-    selectQueueItem(null);
+    setSelectedSupabaseQueueItem(null);
     setSearchTerm("");
     setSelectedPatient(null);
     setShowRegistrationForm(false);
@@ -1412,10 +1177,10 @@ export default function ReceptionPage() {
           <div className="mb-4">
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
               <p className="text-sm font-semibold text-blue-900">
-                Supabase Queue
+                Today's Queue
               </p>
               <p className="mt-1 text-xs text-blue-800">
-                Today's database queue. This is now loaded automatically and can be refreshed manually.
+                Today's patient queue. Use Refresh Queue whenever you want to reload the latest status.
               </p>
 
               <button
@@ -1526,7 +1291,7 @@ export default function ReceptionPage() {
               {selectedSupabaseQueueItem && (
                 <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                   <p className="text-sm font-medium text-emerald-700">
-                    Selected Supabase Queue Patient
+                    Selected Queue Patient
                   </p>
 
                   <p className="mt-2 font-semibold text-slate-900">
@@ -1551,9 +1316,6 @@ export default function ReceptionPage() {
                     {selectedSupabaseQueueItem.paymentMode}
                   </p>
 
-                  <p className="mt-3 text-xs text-emerald-700">
-                    Database queue selection is active. Local queue actions are still separate during migration.
-                  </p>
 
                   <div className="mt-4 flex flex-wrap gap-3">
                     <button
@@ -1625,112 +1387,6 @@ export default function ReceptionPage() {
             </div>
           </div>
 
-          <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-              Temporary Local Queue
-            </p>
-            <p className="mt-1 text-xs text-amber-700">
-              This local browser queue is still available during migration, but the Supabase queue above is the database source.
-            </p>
-          </div>
-          <QueuePanel
-            items={sortQueueForRole(queueItems, "reception")}
-            selectedItemId={selectedQueueItem?.id}
-            onSelectItem={handleSelectQueueItem}
-          />
-
-          {selectedQueueItem && (
-            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-sm font-medium text-emerald-700">
-                Selected Queue Patient
-              </p>
-
-              <p className="mt-2 font-semibold text-slate-900">
-                #{selectedQueueItem.tokenNumber} ·{" "}
-                {selectedQueueItem.patientName}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-600">
-                {selectedQueueItem.age} yrs / {selectedQueueItem.gender}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-600">
-                {selectedQueueItem.visitType}
-              </p>
-
-              <p className="mt-2 text-sm text-slate-700">
-                Original consult paid: ₹{selectedQueueItem.amountPaid} ·{" "}
-                {selectedQueueItem.paymentMode}
-              </p>
-
-              {pendingAdditionalService && (
-                <div className="mt-4 rounded-xl bg-red-600 p-3 text-white">
-                  <p className="text-xs font-bold uppercase tracking-wide text-red-100">
-                    Additional Payment Pending
-                  </p>
-                  <p className="mt-1 text-2xl font-bold">
-                    Collect ₹{pendingAdditionalService.netAmount}
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={handleEditSelectedQueuePatient}
-                className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
-              >
-                Edit Patient / Original Payment
-              </button>
-
-              {paidAdditionalServices.length > 0 && (
-                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-sm font-semibold text-blue-900">
-                    Paid Additional Tests / Services
-                  </p>
-
-                  <p className="mt-1 text-sm text-blue-800">
-                    Total additional amount paid: ₹{totalPaidAdditionalAmount}
-                  </p>
-
-                  <div className="mt-3 grid gap-3">
-                    {paidAdditionalServices.map((service, index) => (
-                      <div
-                        key={service.id}
-                        className="rounded-xl border border-blue-100 bg-white p-3"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">
-                              Additional Receipt {index + 1}
-                            </p>
-
-                            <p className="mt-1 text-sm text-slate-700">
-                              {service.services
-                                .map((item) => item.serviceName)
-                                .join(", ")}
-                            </p>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              Paid: ₹{service.netAmount} ·{" "}
-                              {service.paymentMode || "Cash"}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() =>
-                              handlePrintPaidAdditionalReceipt(service)
-                            }
-                            className="rounded-xl bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
-                          >
-                            Print Receipt
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </SectionCard>
 
         <div className="grid gap-6 lg:col-span-2">
@@ -1759,49 +1415,12 @@ export default function ReceptionPage() {
                 className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
               />
 
-              {searchTerm && !showRegistrationForm && !isEditingAnyQueueItem && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm font-medium text-slate-700">
-                    Search Results
-                  </p>
-
-                  {matchingPatients.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-500">
-                      No matching patient found. Click New Patient to register.
-                    </p>
-                  ) : (
-                    <div className="mt-3 grid gap-3">
-                      {matchingPatients.map((patient) => (
-                        <button
-                          key={patient.id}
-                          onClick={() => handleSelectPatient(patient)}
-                          className="rounded-xl border border-slate-200 bg-white p-4 text-left hover:border-slate-400"
-                        >
-                          <p className="font-semibold text-slate-900">
-                            {patient.name}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-600">
-                            {patient.age} yrs / {patient.gender}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {patient.uhid}
-                          </p>
-                          <p className="mt-1 text-sm text-slate-500">
-                            {patient.mobile}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {searchTerm &&
                 !showRegistrationForm &&
                 !isEditingAnyQueueItem && (
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <p className="text-sm font-semibold text-blue-900">
-                      Supabase Patient Results
+                      Search Results
                     </p>
 
                     {supabasePatientSearchStatus && (
@@ -1946,13 +1565,6 @@ export default function ReceptionPage() {
                       className="rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
                     >
                       Save Patient
-                    </button>
-
-                    <button
-                      onClick={handleCreateTemporaryPatient}
-                      className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
-                    >
-                      Save Local Test Patient
                     </button>
 
                     <button
@@ -2280,7 +1892,7 @@ export default function ReceptionPage() {
 
                     {selectedPatientActiveSupabaseQueueItem && (
                       <p className="mt-2 text-xs font-medium text-emerald-700">
-                        This patient is already in today's Supabase queue as token #
+                        This patient is already in today's queue as token #
                         {selectedPatientActiveSupabaseQueueItem.tokenNumber}.
                       </p>
                     )}
@@ -2289,11 +1901,7 @@ export default function ReceptionPage() {
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
                     {isEditingAnyQueueItem ? (
                       <button
-                        onClick={
-                          supabaseQueueItemBeingEdited
-                            ? handleSaveSupabaseQueuePatientCorrections
-                            : handleSaveQueuePatientCorrections
-                        }
+                        onClick={handleSaveSupabaseQueuePatientCorrections}
                         className="rounded-xl bg-slate-900 px-4 py-3 font-medium text-white hover:bg-slate-800"
                       >
                         Save Corrections
@@ -2325,23 +1933,6 @@ export default function ReceptionPage() {
                     </button>
                   </div>
 
-                  {!isEditingAnyQueueItem && (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                        Development fallback
-                      </p>
-                      <p className="mt-1 text-xs text-amber-700">
-                        Use only if we need to compare against the old local browser queue during migration.
-                      </p>
-                      <button
-                        onClick={handleGenerateReceipt}
-                        className="mt-3 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-                      >
-                        Local Test Only
-                      </button>
-                    </div>
-                  )}
-
                   {supabaseCheckInStatus && (
                     <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                       <p className="font-medium text-emerald-800">
@@ -2359,30 +1950,7 @@ export default function ReceptionPage() {
                     </div>
                   )}
 
-                  {receiptGenerated && (
-                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                      <p className="font-medium text-emerald-800">
-                        {queueItemBeingEdited
-                          ? "Corrections saved successfully."
-                          : "Receipt generated successfully."}
-                      </p>
 
-                      <p className="mt-1 text-sm text-emerald-700">
-                        {queueItemBeingEdited
-                          ? canEditPayment
-                            ? "Patient details and original payment were updated."
-                            : "Patient details were updated. Original payment remained locked."
-                          : "Patient has been added to the queue."}
-                      </p>
-
-                      <button
-                        onClick={handleStartNextPatient}
-                        className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-medium text-white hover:bg-emerald-800"
-                      >
-                        Start Next Patient
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -2430,22 +1998,6 @@ export default function ReceptionPage() {
   >
     Patient Records
   </a>
-</div>
-
-<div className="rounded-xl border border-red-200 bg-red-50 p-4">
-  <p className="text-sm font-semibold text-red-800">
-    Test Utility
-  </p>
-  <p className="mt-1 text-xs text-red-700">
-    Clears only local browser queue/test data. Sample patients remain.
-  </p>
-
-  <button
-    onClick={handleClearLocalQueueData}
-    className="mt-3 rounded-xl bg-red-700 px-4 py-3 text-sm font-medium text-white hover:bg-red-800"
-  >
-    Clear Local Test Queue Data
-  </button>
 </div>
 
             </div>

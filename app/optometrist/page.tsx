@@ -722,7 +722,7 @@ export default function OptometristPage() {
 
         <SectionCard
           title="Patient Workup"
-          subtitle="All fields are optional in V1"
+          subtitle="All fields are optional"
           className="lg:col-span-2"
         >
           <div className="grid gap-4">

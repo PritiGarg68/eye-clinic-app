@@ -636,6 +636,25 @@ export default function ReceptionPage() {
       return;
     }
 
+    const latestQueue = await fetchTodayQueueFromSupabase();
+    const latestEditingItem =
+      latestQueue.find(
+        (item) => item.id === supabaseQueueItemBeingEdited.id
+      ) || null;
+
+    if (!latestEditingItem || latestEditingItem.status !== "Waiting") {
+      setSupabaseQueueItems(latestQueue);
+      setSelectedSupabaseQueueItem(latestEditingItem);
+      resetQueueEditState();
+
+      alert(
+        `Original check-in can be edited only while status is Waiting. Current status: ${
+          latestEditingItem?.status || "Not available"
+        }.`
+      );
+      return;
+    }
+
     if (!editablePatientDetails.name || !editablePatientDetails.age) {
       alert("Please enter patient name and age.");
       return;
@@ -1102,7 +1121,30 @@ export default function ReceptionPage() {
 
     try {
       const queue = await fetchTodayQueueFromSupabase();
+
       setSupabaseQueueItems(queue);
+
+      setSelectedSupabaseQueueItem((currentSelected) =>
+        currentSelected
+          ? queue.find((item) => item.id === currentSelected.id) || null
+          : null
+      );
+
+      setEditingSupabaseQueueItem((currentEditing) => {
+        if (!currentEditing) {
+          return null;
+        }
+
+        const refreshedEditingItem =
+          queue.find((item) => item.id === currentEditing.id) || null;
+
+        if (refreshedEditingItem?.status !== "Waiting") {
+          return null;
+        }
+
+        return refreshedEditingItem;
+      });
+
       setSupabaseQueueStatus(`Loaded ${queue.length} queue item(s).`);
     } catch (error) {
       setSupabaseQueueStatus(

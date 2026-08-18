@@ -31,6 +31,12 @@ import {
 } from "../../lib/optometristWorkupDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
 import { createOrUpdatePendingAdditionalServiceRequestInSupabase } from "../../lib/additionalServiceRequestDb";
+import {
+  cancelRefundRequestInSupabase,
+  createRefundRequestInSupabase,
+  fetchRefundRequestForVisitInSupabase,
+  RefundRequest,
+} from "../../lib/refundRequestDb";
 import { fetchClinicalTemplatesFromSupabase } from "../../lib/clinicalTemplatesDb";
 import {
   fetchActiveMedicinesFromSupabase,
@@ -157,6 +163,27 @@ const emptyOptometristWorkup: OptometristWorkup = {
   optometristNotes: "",
   spectacleDraft: emptySpectacleAdvice,
 };
+
+function getLocalTodayDateValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function hasInvalidPastFollowUpDate(consultation: DoctorConsultation) {
+  const today = getLocalTodayDateValue();
+
+  return (
+    Boolean(consultation.followUpDate && consultation.followUpDate < today) ||
+    Boolean(
+      consultation.freeFollowUpValidUntil &&
+        consultation.freeFollowUpValidUntil < today
+    )
+  );
+}
 
 function normalizeOptometristWorkupForDoctor(
   savedWorkup?: Partial<OptometristWorkup> | null
@@ -489,8 +516,15 @@ export default function DoctorPage() {
   const [showPrescriptionPreview, setShowPrescriptionPreview] = useState(false);
   const [showAdditionalServicePanel, setShowAdditionalServicePanel] =
     useState(false);
-    const additionalServicePanelRef = useRef<HTMLDivElement | null>(null);
+  const additionalServicePanelRef = useRef<HTMLDivElement | null>(null);
   const [additionalServiceMessage, setAdditionalServiceMessage] = useState("");
+  const [showRefundPanel, setShowRefundPanel] = useState(false);
+  const [refundRequest, setRefundRequest] = useState<RefundRequest | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundReason, setRefundReason] = useState("");
+  const [refundNotes, setRefundNotes] = useState("");
+  const [refundMessage, setRefundMessage] = useState("");
+  const [refundBusy, setRefundBusy] = useState(false);
   const [isPrintingPrescription, setIsPrintingPrescription] = useState(false);
   const [isPrintingSpectacleAdvice, setIsPrintingSpectacleAdvice] =
     useState(false);
@@ -724,15 +758,25 @@ export default function DoctorPage() {
     setShowPrescriptionPreview(false);
     setShowAdditionalServicePanel(false);
     setAdditionalServiceMessage("");
+    setShowRefundPanel(false);
+    setRefundRequest(null);
+    setRefundAmount("");
+    setRefundReason("");
+    setRefundNotes("");
+    setRefundMessage("");
     setIsPrintingPrescription(false);
     setIsPrintingSpectacleAdvice(false);
     setIsEditingPatientWorkup(false);
 
     try {
-      const [savedWorkup, savedConsultation] = await Promise.all([
-        fetchOptometristWorkupFromSupabase(item.id),
-        fetchDoctorConsultationFromSupabase(item.id),
-      ]);
+      const [savedWorkup, savedConsultation, savedRefundRequest] =
+        await Promise.all([
+          fetchOptometristWorkupFromSupabase(item.id),
+          fetchDoctorConsultationFromSupabase(item.id),
+          fetchRefundRequestForVisitInSupabase(item.id),
+        ]);
+
+      setRefundRequest(savedRefundRequest);
 
       const normalizedWorkup = normalizeOptometristWorkupForDoctor(savedWorkup);
 
@@ -1143,14 +1187,28 @@ export default function DoctorPage() {
       }
 
       try {
+        const shouldResumeConsultation =
+          selectedSupabaseQueueItem.status === "Dilated Waiting" &&
+          workup.dilationStatus === "Done";
+
         await saveOptometristWorkupToSupabase({
           visitId: selectedSupabaseQueueItem.id,
           patientId: selectedSupabaseQueueItem.patientId,
           workup,
         });
 
+        if (shouldResumeConsultation) {
+          await updateVisitStatusInSupabase(
+            selectedSupabaseQueueItem.id,
+            "Under Consultation"
+          );
+        }
+
         const updatedItem = {
           ...selectedSupabaseQueueItem,
+          status: shouldResumeConsultation
+            ? ("Under Consultation" as const)
+            : selectedSupabaseQueueItem.status,
           optometristWorkup: workup,
         };
 
@@ -1161,6 +1219,7 @@ export default function DoctorPage() {
 
           return {
             ...current,
+            status: updatedItem.status,
             optometristWorkup: workup,
           };
         });
@@ -1170,6 +1229,7 @@ export default function DoctorPage() {
             item.id === selectedSupabaseQueueItem.id
               ? {
                   ...item,
+                  status: updatedItem.status,
                   optometristWorkup: workup,
                 }
               : item
@@ -1189,7 +1249,11 @@ export default function DoctorPage() {
           };
         });
 
-        setStatusMessage("Workup details updated by doctor/admin.");
+        setStatusMessage(
+          shouldResumeConsultation
+            ? "Dilation completed. Consultation resumed."
+            : "Workup details updated by doctor/admin."
+        );
       } catch (error) {
         setStatusMessage(
           error instanceof Error
@@ -1310,6 +1374,13 @@ export default function DoctorPage() {
       return;
     }
 
+    if (hasInvalidPastFollowUpDate(consultation)) {
+      alert(
+        "Follow-up dates cannot be earlier than today. Please choose today or a future date."
+      );
+      return;
+    }
+
     if (selectedSupabaseQueueItem) {
       if (!selectedSupabaseQueueItem.patientId) {
         alert("Patient ID is missing for this queue item.");
@@ -1384,6 +1455,13 @@ export default function DoctorPage() {
   async function handleCompleteConsultation() {
     if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    if (hasInvalidPastFollowUpDate(consultation)) {
+      alert(
+        "Follow-up dates cannot be earlier than today. Please choose today or a future date."
+      );
       return;
     }
 
@@ -1693,6 +1771,122 @@ export default function DoctorPage() {
     }, 100);
   }
 
+  function handleOpenRefundPanel() {
+    if (!activeQueueItem) {
+      return;
+    }
+
+    setRefundMessage("");
+
+    if (!refundRequest) {
+      setRefundAmount(
+        activeQueueItem.consultationNetAmount
+          ? String(activeQueueItem.consultationNetAmount)
+          : ""
+      );
+      setRefundReason("");
+      setRefundNotes("");
+    }
+
+    setShowRefundPanel((current) => !current);
+  }
+
+  async function handleCreateRefundAdvice() {
+    if (!activeQueueItem?.consultationPaymentId) {
+      setRefundMessage("Original consultation payment could not be identified.");
+      return;
+    }
+
+    const amount = Number(refundAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setRefundMessage("Enter a valid refund amount greater than zero.");
+      return;
+    }
+
+    if (
+      activeQueueItem.consultationNetAmount &&
+      amount > activeQueueItem.consultationNetAmount
+    ) {
+      setRefundMessage(
+        `Refund cannot exceed ₹${activeQueueItem.consultationNetAmount}.`
+      );
+      return;
+    }
+
+    if (!refundReason.trim()) {
+      setRefundMessage("Refund reason is required.");
+      return;
+    }
+
+    const shouldCreate = window.confirm(
+      `Create refund advice for ₹${amount}? Reception will still need to process the actual refund.`
+    );
+
+    if (!shouldCreate) {
+      return;
+    }
+
+    setRefundBusy(true);
+    setRefundMessage("Creating refund advice...");
+
+    try {
+      const created = await createRefundRequestInSupabase({
+        originalPaymentId: activeQueueItem.consultationPaymentId,
+        refundAmount: amount,
+        reason: refundReason.trim(),
+        notes: refundNotes.trim(),
+      });
+
+      setRefundRequest(created);
+      setRefundMessage(
+        "Refund advice created. Awaiting Reception processing."
+      );
+    } catch (error) {
+      setRefundMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not create refund advice."
+      );
+    } finally {
+      setRefundBusy(false);
+    }
+  }
+
+  async function handleCancelRefundAdvice() {
+    if (!refundRequest || refundRequest.status !== "Refund Pending") {
+      return;
+    }
+
+    const shouldCancel = window.confirm(
+      "Cancel this pending refund advice? A corrected advice can be created afterwards."
+    );
+
+    if (!shouldCancel) {
+      return;
+    }
+
+    setRefundBusy(true);
+    setRefundMessage("Cancelling refund advice...");
+
+    try {
+      await cancelRefundRequestInSupabase(refundRequest.id);
+      setRefundRequest(null);
+      setRefundAmount("");
+      setRefundReason("");
+      setRefundNotes("");
+      setRefundMessage("Refund advice cancelled.");
+    } catch (error) {
+      setRefundMessage(
+        error instanceof Error
+          ? error.message
+          : "Could not cancel refund advice."
+      );
+    } finally {
+      setRefundBusy(false);
+    }
+  }
+
   async function handleSendForDilation() {
     if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
@@ -1702,6 +1896,13 @@ export default function DoctorPage() {
     if (activeQueueItem.status === "Completed") {
       alert(
         "This consultation is already completed. Reopen it first if changes are needed."
+      );
+      return;
+    }
+
+    if (activeQueueItem.status === "Dilated Waiting") {
+      alert(
+        "This patient is already waiting for dilation. Mark dilation Done before sending again."
       );
       return;
     }
@@ -1734,9 +1935,6 @@ export default function DoctorPage() {
         const updatedWorkup: OptometristWorkup = {
           ...existingWorkup,
           dilationStatus: "Waiting",
-          dilationNotes: existingWorkup.dilationNotes
-            ? `${existingWorkup.dilationNotes}\nSent for dilation by doctor.`
-            : "Sent for dilation by doctor.",
         };
 
         await saveOptometristWorkupToSupabase({
@@ -1951,15 +2149,155 @@ export default function DoctorPage() {
       title="Doctor / Admin Workspace"
       subtitle="Consultation, prescriptions, patient history, reports, and master data"
     >
-      <div className="mb-6 flex justify-end">
-        <Link
-          href="/reports"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-xl border border-slate-700 bg-slate-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
-        >
-          Reports
-        </Link>
+      <div className="mb-6 grid gap-3">
+        <div className="flex flex-wrap justify-end gap-2">
+          {activeQueueItem?.status === "Completed" &&
+            Boolean(activeQueueItem.consultationPaymentId) &&
+            Number(activeQueueItem.consultationNetAmount || 0) > 0 && (
+              <button
+                type="button"
+                onClick={handleOpenRefundPanel}
+                className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900 shadow-sm hover:bg-amber-100"
+              >
+                {refundRequest?.status === "Refund Pending"
+                  ? "Refund Pending"
+                  : refundRequest?.status === "Refunded"
+                    ? "Refund Processed"
+                    : "Refund / Fee Adjustment"}
+              </button>
+            )}
+
+          <Link
+            href="/reports"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-xl border border-slate-700 bg-slate-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"
+          >
+            Reports
+          </Link>
+        </div>
+
+        {showRefundPanel &&
+          activeQueueItem?.status === "Completed" &&
+          activeQueueItem.consultationPaymentId &&
+          Number(activeQueueItem.consultationNetAmount || 0) > 0 && (
+            <div className="ml-auto w-full max-w-xl rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-amber-950">
+                    Refund / Fee Adjustment
+                  </p>
+                  <p className="mt-1 text-sm text-amber-900">
+                    {activeQueueItem.patientName} ·{" "}
+                    {activeQueueItem.consultationReceiptNumber || "Consultation receipt"}
+                    {" · "}Paid ₹{activeQueueItem.consultationNetAmount || 0}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRefundPanel(false)}
+                  className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  Close
+                </button>
+              </div>
+
+              {refundRequest?.status === "Refunded" ? (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                  <p className="font-semibold">
+                    Refund processed: ₹{refundRequest.refundAmount}
+                  </p>
+                  <p className="mt-1">
+                    Reason: {refundRequest.reason}
+                  </p>
+                  <p className="mt-1 text-xs">
+                    No further refund can be issued against this consultation receipt.
+                  </p>
+                </div>
+              ) : refundRequest?.status === "Refund Pending" ? (
+                <div className="mt-4 rounded-xl border border-amber-300 bg-white p-4">
+                  <p className="font-semibold text-amber-950">
+                    Refund Pending: ₹{refundRequest.refundAmount}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">
+                    Reason: {refundRequest.reason}
+                  </p>
+                  {refundRequest.notes && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      Notes: {refundRequest.notes}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-slate-500">
+                    Awaiting Reception processing.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleCancelRefundAdvice}
+                    disabled={refundBusy}
+                    className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Cancel Advice
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    Refund Amount
+                    <input
+                      type="number"
+                      min="0.01"
+                      max={activeQueueItem.consultationNetAmount || undefined}
+                      step="0.01"
+                      value={refundAmount}
+                      onChange={(event) => setRefundAmount(event.target.value)}
+                      className="rounded-xl border border-amber-300 bg-white px-3 py-2 outline-none focus:border-amber-500"
+                    />
+                    <span className="text-xs font-normal text-slate-500">
+                      Maximum ₹{activeQueueItem.consultationNetAmount || 0}.
+                    </span>
+                  </label>
+
+                  <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    Reason
+                    <input
+                      type="text"
+                      value={refundReason}
+                      onChange={(event) => setRefundReason(event.target.value)}
+                      placeholder="Reason for refund / fee adjustment"
+                      className="rounded-xl border border-amber-300 bg-white px-3 py-2 outline-none focus:border-amber-500"
+                    />
+                  </label>
+
+                  <label className="grid gap-1 text-sm font-medium text-slate-700">
+                    Notes
+                    <textarea
+                      value={refundNotes}
+                      onChange={(event) => setRefundNotes(event.target.value)}
+                      placeholder="Optional internal note"
+                      className="min-h-20 rounded-xl border border-amber-300 bg-white px-3 py-2 outline-none focus:border-amber-500"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleCreateRefundAdvice}
+                    disabled={refundBusy}
+                    className="justify-self-start rounded-xl bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {refundBusy ? "Saving..." : "Create Refund Advice"}
+                  </button>
+                </div>
+              )}
+
+              {refundMessage && (
+                <p className="mt-3 rounded-xl bg-white p-3 text-sm font-medium text-slate-700">
+                  {refundMessage}
+                </p>
+              )}
+            </div>
+          )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)_180px]">
@@ -2310,6 +2648,7 @@ export default function DoctorPage() {
                   Follow-Up Date
                   <input
                     type="date"
+                    min={getLocalTodayDateValue()}
                     value={consultation.followUpDate}
                     onChange={(event) => {
                       const value = event.target.value;
@@ -2330,6 +2669,7 @@ export default function DoctorPage() {
   Free Follow-Up Valid Until
   <input
     type="date"
+    min={getLocalTodayDateValue()}
     value={consultation.freeFollowUpValidUntil || ""}
     onChange={(event) => {
       const value = event.target.value;
@@ -2394,6 +2734,7 @@ export default function DoctorPage() {
             patientSelected={Boolean(activeQueueItem)}
             consultationActive={consultationActive}
             consultationCompleted={consultationCompleted}
+            dilationWaiting={activeQueueItem?.status === "Dilated Waiting"}
             onStartConsultation={handleStartConsultation}
             onSaveDraft={handleSaveConsultationDraft}
             onPreviewPrescription={handlePreviewPrescription}

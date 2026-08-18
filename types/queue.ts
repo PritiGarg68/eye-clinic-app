@@ -117,6 +117,7 @@ export type QueueItem = {
   visitType: VisitType;
   paymentMode: PaymentMode;
   amountPaid: number;
+  consultationPaymentId?: string;
   consultationReceiptNumber?: string;
   consultationGrossAmount?: number;
   consultationDiscountAmount?: number;

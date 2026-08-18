@@ -16,14 +16,27 @@ import {
   fetchPatientRecordsFromSupabase,
 } from "../../lib/patientRecordsDb";
 import {
+  AttachmentCategory,
   PatientAttachment,
   fetchPatientAttachmentsFromSupabase,
+  uploadPatientAttachmentToSupabase,
 } from "../../lib/patientAttachmentsDb";
 import {
   createGeneratedDocumentSignedUrl,
   fetchGeneratedDocumentForVisit,
   fetchGeneratedReceiptForPayment,
 } from "../../lib/generatedDocumentsDb";
+
+const attachmentCategories: AttachmentCategory[] = [
+  "OCT",
+  "Fundus Photo",
+  "Perimetry",
+  "IOP Report",
+  "External Report",
+  "Prescription",
+  "Spectacle Prescription",
+  "Other",
+];
 
 function formatDateTime(value: string) {
   if (!value) {
@@ -328,6 +341,13 @@ export default function PatientRecordsPage() {
   const [visits, setVisits] = useState<PatientRecordVisit[]>([]);
   const [attachments, setAttachments] = useState<PatientAttachment[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
+  const [showAddReport, setShowAddReport] = useState(false);
+  const [reportCategory, setReportCategory] =
+    useState<AttachmentCategory>("External Report");
+  const [reportNote, setReportNote] = useState("");
+  const [reportFile, setReportFile] = useState<File | null>(null);
+  const [reportUploadStatus, setReportUploadStatus] = useState("");
+  const [reportFileInputKey, setReportFileInputKey] = useState(0);
   const [printingReceipt, setPrintingReceipt] = useState<{
     visit: PatientRecordVisit;
     payment: PatientRecordPayment;
@@ -349,6 +369,12 @@ export default function PatientRecordsPage() {
     setSelectedPatient(null);
     setVisits([]);
     setAttachments([]);
+    setShowAddReport(false);
+    setReportCategory("External Report");
+    setReportNote("");
+    setReportFile(null);
+    setReportUploadStatus("");
+    setReportFileInputKey((current) => current + 1);
 
     try {
       const results = await searchPatientsFromSupabase(term);
@@ -364,6 +390,12 @@ export default function PatientRecordsPage() {
   async function handleSelectPatient(patient: SupabasePatient) {
     setSelectedPatient(patient);
     setStatusMessage("Loading patient records...");
+    setShowAddReport(false);
+    setReportCategory("External Report");
+    setReportNote("");
+    setReportFile(null);
+    setReportUploadStatus("");
+    setReportFileInputKey((current) => current + 1);
 
     try {
       const [records, patientAttachments] = await Promise.all([
@@ -381,6 +413,51 @@ export default function PatientRecordsPage() {
         error instanceof Error
           ? error.message
           : "Could not load patient records."
+      );
+    }
+  }
+
+  function handleCancelAddReport() {
+    setShowAddReport(false);
+    setReportCategory("External Report");
+    setReportNote("");
+    setReportFile(null);
+    setReportUploadStatus("");
+    setReportFileInputKey((current) => current + 1);
+  }
+
+  async function handleUploadReport() {
+    if (!selectedPatient) {
+      setReportUploadStatus("Select a patient before uploading a report.");
+      return;
+    }
+
+    if (!reportFile) {
+      setReportUploadStatus("Choose a PDF, JPG, JPEG, or PNG file first.");
+      return;
+    }
+
+    setReportUploadStatus("Uploading report...");
+
+    try {
+      const uploaded = await uploadPatientAttachmentToSupabase({
+        patientId: selectedPatient.id,
+        file: reportFile,
+        attachmentCategory: reportCategory,
+        notes: reportNote,
+      });
+
+      setAttachments((current) => [uploaded, ...current]);
+      setReportCategory("External Report");
+      setReportNote("");
+      setReportFile(null);
+      setReportFileInputKey((current) => current + 1);
+      setShowAddReport(false);
+      setReportUploadStatus("");
+      setStatusMessage("Report uploaded and added to patient records.");
+    } catch (error) {
+      setReportUploadStatus(
+        error instanceof Error ? error.message : "Could not upload report."
       );
     }
   }
@@ -635,10 +712,108 @@ export default function PatientRecordsPage() {
                       Patient-level uploaded files such as OCT, fundus, perimetry, and external reports.
                     </p>
                   </div>
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
-                    {attachments.length} file(s)
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-800">
+                      {attachments.length} file(s)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (showAddReport) {
+                          handleCancelAddReport();
+                        } else {
+                          setShowAddReport(true);
+                          setReportUploadStatus("");
+                        }
+                      }}
+                      className="rounded-xl bg-indigo-700 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-800"
+                    >
+                      {showAddReport ? "Cancel" : "Add Report"}
+                    </button>
+                  </div>
                 </div>
+
+                {showAddReport && (
+                  <div className="mt-4 rounded-xl border border-indigo-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Add Patient Report
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      This report will be stored against the patient record and will not create a new visit.
+                    </p>
+
+                    <div className="mt-4 grid gap-3">
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        Report category
+                        <select
+                          value={reportCategory}
+                          onChange={(event) =>
+                            setReportCategory(
+                              event.target.value as AttachmentCategory
+                            )
+                          }
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        >
+                          {attachmentCategories.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        Report name / note
+                        <input
+                          type="text"
+                          value={reportNote}
+                          onChange={(event) => setReportNote(event.target.value)}
+                          placeholder="Optional, e.g. Sugar Report, Outside OCT"
+                          className="rounded-xl border border-slate-300 px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        File
+                        <input
+                          key={reportFileInputKey}
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png"
+                          onChange={(event) =>
+                            setReportFile(event.target.files?.[0] || null)
+                          }
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                        />
+                        <span className="text-xs font-normal text-slate-500">
+                          Allowed: PDF, JPG, JPEG, PNG.
+                        </span>
+                      </label>
+
+                      {reportUploadStatus && (
+                        <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                          {reportUploadStatus}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleUploadReport()}
+                          className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                        >
+                          Upload Report
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelAddReport}
+                          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 grid gap-3">
                   {attachments.length === 0 ? (

@@ -5,11 +5,12 @@ export type QueueRole = "reception" | "optometrist" | "doctor";
 const rolePriority: Record<QueueRole, QueueStatus[]> = {
   reception: [
     "Waiting",
+    "Under Optometry",
+    "Under Consultation",
     "Needs Optometry Review",
     "Dilated Waiting",
     "Ready for Doctor",
-    "Under Optometry",
-    "Under Consultation",
+    "Additional Payment Pending",
     "Completed",
   ],
   optometrist: [
@@ -19,6 +20,7 @@ const rolePriority: Record<QueueRole, QueueStatus[]> = {
     "Under Optometry",
     "Ready for Doctor",
     "Under Consultation",
+    "Additional Payment Pending",
     "Completed",
   ],
   doctor: [
@@ -28,6 +30,7 @@ const rolePriority: Record<QueueRole, QueueStatus[]> = {
     "Waiting",
     "Under Optometry",
     "Needs Optometry Review",
+    "Additional Payment Pending",
     "Completed",
   ],
 };

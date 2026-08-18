@@ -8,6 +8,7 @@ type ClinicalTemplatePickerProps = {
   currentValue: string;
   onSelect: (template: string) => void;
   quickLimit?: number;
+  disabled?: boolean;
 };
 
 function getEnteredLines(value: string) {
@@ -49,6 +50,7 @@ export default function ClinicalTemplatePicker({
   currentValue,
   onSelect,
   quickLimit = 6,
+  disabled = false,
 }: ClinicalTemplatePickerProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -97,7 +99,7 @@ export default function ClinicalTemplatePicker({
   }
 
   function handleSelect(template: string) {
-    if (isSelected(template)) {
+    if (disabled || isSelected(template)) {
       return;
     }
 
@@ -118,7 +120,7 @@ export default function ClinicalTemplatePicker({
             <button
               key={template}
               type="button"
-              disabled={selected}
+              disabled={disabled || selected}
               onClick={() => handleSelect(template)}
               className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
                 selected
@@ -135,8 +137,9 @@ export default function ClinicalTemplatePicker({
         {uniqueTemplates.length > quickLimit && (
           <button
             type="button"
+            disabled={disabled}
             onClick={() => setIsExpanded((current) => !current)}
-            className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100"
+            className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isExpanded
               ? "Close"
@@ -154,11 +157,12 @@ export default function ClinicalTemplatePicker({
 
             <button
               type="button"
+              disabled={disabled}
               onClick={() => {
                 setIsExpanded(false);
                 setSearchText("");
               }}
-              className="text-xs font-semibold text-indigo-700 hover:text-indigo-950"
+              className="text-xs font-semibold text-indigo-700 hover:text-indigo-950 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Done
             </button>
@@ -167,9 +171,10 @@ export default function ClinicalTemplatePicker({
           <input
             type="search"
             value={searchText}
+            disabled={disabled}
             onChange={(event) => setSearchText(event.target.value)}
             placeholder={`Search ${label.toLowerCase()} templates`}
-            className="mt-3 w-full rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500"
+            className="mt-3 w-full rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-100"
           />
 
           <div className="mt-3 max-h-64 overflow-y-auto rounded-xl border border-indigo-100 bg-white">
@@ -181,7 +186,7 @@ export default function ClinicalTemplatePicker({
                   <button
                     key={template}
                     type="button"
-                    disabled={selected}
+                    disabled={disabled || selected}
                     onClick={() => handleSelect(template)}
                     className={`flex w-full items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm last:border-b-0 ${
                       selected

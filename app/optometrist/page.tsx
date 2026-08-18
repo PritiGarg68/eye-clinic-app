@@ -6,6 +6,7 @@ import SectionCard from "../components/SectionCard";
 import PatientAttachmentsPanel from "../components/PatientAttachmentsPanel";
 import VisionTable from "../components/VisionTable";
 import SpectacleTable from "../components/SpectacleTable";
+import ClinicalTemplatePicker from "../components/ClinicalTemplatePicker";
 import { sortQueueForRole } from "../../lib/queueSorting";
 import {
   fetchTodayQueueFromSupabase,
@@ -137,16 +138,6 @@ const optometristRelevantStatuses: QueueStatus[] = [
 
 function isOptometristRelevantQueueItem(item: QueueItem) {
   return optometristRelevantStatuses.includes(item.status);
-}
-
-function appendText(existingText: string, textToAdd: string) {
-  const trimmedExisting = existingText.trim();
-
-  if (!trimmedExisting) {
-    return textToAdd;
-  }
-
-  return `${trimmedExisting}\n${textToAdd}`;
 }
 
 const doctorSendBackReviewNote =
@@ -843,23 +834,21 @@ export default function OptometristPage() {
                   className="min-h-24 rounded-xl border border-slate-300 px-4 py-3 font-normal outline-none focus:border-slate-500 disabled:bg-slate-100"
                 />
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {chiefComplaintTemplateChips.map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      disabled={isFormDisabled}
-                      onClick={() =>
-                        updateSimpleField(
-                          "chiefComplaint",
-                          appendText(workup.chiefComplaint, chip)
-                        )
-                      }
-                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {chip}
-                    </button>
-                  ))}
+                <div className="mt-3">
+                  <ClinicalTemplatePicker
+                    label="Chief Complaint"
+                    templates={chiefComplaintTemplateChips}
+                    currentValue={workup.chiefComplaint}
+                    disabled={isFormDisabled}
+                    onSelect={(template) =>
+                      updateSimpleField(
+                        "chiefComplaint",
+                        workup.chiefComplaint.trim()
+                          ? `${workup.chiefComplaint.trim()}\n${template}`
+                          : template
+                      )
+                    }
+                  />
                 </div>
               </label>
             </div>
@@ -982,23 +971,21 @@ export default function OptometristPage() {
                 className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-500 disabled:bg-slate-100"
               />
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {historyTemplateChips.map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() =>
-                      updateSimpleField(
-                        "optometristNotes",
-                        appendText(workup.optometristNotes, chip)
-                      )
-                    }
-                    disabled={isFormDisabled}
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  >
-                    {chip}
-                  </button>
-                ))}
+              <div className="mt-3">
+                <ClinicalTemplatePicker
+                  label="History"
+                  templates={historyTemplateChips}
+                  currentValue={workup.optometristNotes}
+                  disabled={isFormDisabled}
+                  onSelect={(template) =>
+                    updateSimpleField(
+                      "optometristNotes",
+                      workup.optometristNotes.trim()
+                        ? `${workup.optometristNotes.trim()}\n${template}`
+                        : template
+                    )
+                  }
+                />
               </div>
 
               <p className="mt-2 text-xs text-slate-500">

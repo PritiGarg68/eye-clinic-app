@@ -2,6 +2,7 @@ type DoctorActionPanelProps = {
   patientSelected: boolean;
   consultationActive: boolean;
   consultationCompleted: boolean;
+  dilationWaiting: boolean;
   onStartConsultation: () => void;
   onSaveDraft: () => void;
   onPreviewPrescription: () => void;
@@ -22,6 +23,7 @@ export default function DoctorActionPanel({
   patientSelected,
   consultationActive,
   consultationCompleted,
+  dilationWaiting,
   onStartConsultation,
   onSaveDraft,
   onPreviewPrescription,
@@ -37,9 +39,11 @@ export default function DoctorActionPanel({
     ? "Select Patient First"
     : consultationActive
       ? "Consultation Started"
-      : consultationCompleted
-        ? "Reopen Consultation"
-        : "Start Consultation";
+      : dilationWaiting
+        ? "Waiting for Dilation"
+        : consultationCompleted
+          ? "Reopen Consultation"
+          : "Start Consultation";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -51,10 +55,10 @@ export default function DoctorActionPanel({
       <div className="mt-3 grid gap-2">
         <button
           type="button"
-          disabled={!patientSelected || consultationActive}
+          disabled={!patientSelected || consultationActive || dilationWaiting}
           onClick={onStartConsultation}
           className={
-            !patientSelected || consultationActive
+            !patientSelected || consultationActive || dilationWaiting
               ? disabledButton
               : `${enabledButton} bg-slate-200 text-slate-700 hover:bg-slate-300`
           }

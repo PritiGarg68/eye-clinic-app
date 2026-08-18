@@ -217,6 +217,7 @@ export default function ReportsPage() {
     const totals = {
       gross: 0,
       discount: 0,
+      refunds: 0,
       net: 0,
       cash: 0,
       upi: 0,
@@ -227,15 +228,23 @@ export default function ReportsPage() {
     };
 
     for (const row of transactions) {
-      totals.gross += row.grossAmount;
-      totals.discount += row.discountAmount;
-      totals.net += row.netAmount;
+      const isRefund = row.paymentType === "Refund";
+      const signedNetAmount = isRefund ? -row.netAmount : row.netAmount;
 
-      if (row.paymentMode === "Cash") totals.cash += row.netAmount;
-      if (row.paymentMode === "UPI") totals.upi += row.netAmount;
-      if (row.paymentMode === "Card") totals.card += row.netAmount;
+      if (isRefund) {
+        totals.refunds += row.netAmount;
+      } else {
+        totals.gross += row.grossAmount;
+        totals.discount += row.discountAmount;
+      }
+
+      totals.net += signedNetAmount;
+
+      if (row.paymentMode === "Cash") totals.cash += signedNetAmount;
+      if (row.paymentMode === "UPI") totals.upi += signedNetAmount;
+      if (row.paymentMode === "Card") totals.card += signedNetAmount;
       if (row.paymentMode === "Bank Transfer") {
-        totals.bankTransfer += row.netAmount;
+        totals.bankTransfer += signedNetAmount;
       }
 
       if (row.paymentType === "Consultation") {
@@ -397,10 +406,23 @@ export default function ReportsPage() {
                 <p className="mt-1 text-xl font-bold">{money(summary.gross)}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-sm text-slate-500">Discounts</p>
-                <p className="mt-1 text-xl font-bold">
-                  {money(summary.discount)}
+                <p className="text-sm text-slate-500">
+                  Discounts & Refunds
                 </p>
+                <div className="mt-2 grid gap-1 text-sm">
+                  <div>
+                    Discounts:{" "}
+                    <span className="font-semibold">
+                      {money(summary.discount)}
+                    </span>
+                  </div>
+                  <div>
+                    Refunds:{" "}
+                    <span className="font-semibold">
+                      {money(summary.refunds)}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-sm text-slate-500">Net Collection</p>
@@ -428,6 +450,7 @@ export default function ReportsPage() {
                   <div>
                     Additional Services: {money(summary.additionalService)}
                   </div>
+                  <div>Refunds: {money(summary.refunds)}</div>
                 </div>
               </div>
             </div>
@@ -458,13 +481,19 @@ export default function ReportsPage() {
                       </td>
                       <td className="px-3 py-2">{row.paymentType}</td>
                       <td className="px-3 py-2 text-right">
-                        {money(row.grossAmount)}
+                        {row.paymentType === "Refund"
+                          ? "—"
+                          : money(row.grossAmount)}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        {money(row.discountAmount)}
+                        {row.paymentType === "Refund"
+                          ? "—"
+                          : money(row.discountAmount)}
                       </td>
                       <td className="px-3 py-2 text-right">
-                        {money(row.netAmount)}
+                        {row.paymentType === "Refund"
+                          ? `-${money(row.netAmount)}`
+                          : money(row.netAmount)}
                       </td>
                       <td className="px-3 py-2">{row.paymentMode}</td>
                     </tr>

@@ -243,6 +243,7 @@ export async function fetchTodayQueueFromSupabase(): Promise<QueueItem[]> {
       visitType: mapVisitType(visit.visit_type),
       paymentMode: mapPaymentMode(consultationPayment?.payment_mode || "None"),
       amountPaid: Number(consultationPayment?.net_amount || 0),
+      consultationPaymentId: consultationPayment?.id,
       consultationReceiptNumber: consultationPayment?.receipt_number,
       consultationGrossAmount: Number(consultationPayment?.gross_amount || 0),
       consultationDiscountAmount: Number(

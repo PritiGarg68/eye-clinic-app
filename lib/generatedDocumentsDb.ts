@@ -4,7 +4,8 @@ export type GeneratedDocumentType =
   | "Prescription"
   | "Spectacle Prescription"
   | "Consultation Receipt"
-  | "Additional Service Receipt";
+  | "Additional Service Receipt"
+  | "Refund Receipt";
 
 export type GeneratedDocument = {
   id: string;
@@ -143,7 +144,7 @@ export async function fetchGeneratedReceiptForPayment(
   paymentId: string,
   documentType: Extract<
     GeneratedDocumentType,
-    "Consultation Receipt" | "Additional Service Receipt"
+    "Consultation Receipt" | "Additional Service Receipt" | "Refund Receipt"
   >
 ): Promise<GeneratedDocument | null> {
   const { data, error } = await supabase

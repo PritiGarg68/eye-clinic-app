@@ -9,13 +9,22 @@ import SectionCard from "../components/SectionCard";
 import ReceiptPreview from "../components/ReceiptPreview";
 import ConsultationReceiptPdfDocument from "../components/ConsultationReceiptPdfDocument";
 import AdditionalServiceReceiptPdfDocument from "../components/AdditionalServiceReceiptPdfDocument";
+import RefundReceiptPdfDocument from "../components/RefundReceiptPdfDocument";
 import AdditionalPaymentPendingCard from "../components/AdditionalPaymentPendingCard";
 import AdditionalServiceReceiptPreview from "../components/AdditionalServiceReceiptPreview";
+import RefundReceiptPreview from "../components/RefundReceiptPreview";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import { fetchDefaultConsultationFeeFromServices } from "../../lib/servicesDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
+import { sortQueueForRole } from "../../lib/queueSorting";
 import { fetchTodayQueueFromSupabase } from "../../lib/queueDb";
 import { collectAdditionalServicePaymentInSupabase } from "../../lib/additionalServiceRequestDb";
+import {
+  fetchPendingRefundRequestsInSupabase,
+  processRefundRequestInSupabase,
+  RefundPaymentMode,
+  RefundRequest,
+} from "../../lib/refundRequestDb";
 import { upsertGeneratedDocumentToSupabase } from "../../lib/generatedDocumentsDb";
 import {
   FreeFollowUpEntitlement,
@@ -106,6 +115,20 @@ export default function ReceptionPage() {
   const [additionalReceiptService, setAdditionalReceiptService] =
     useState<AdditionalServiceRequest | null>(null);
 
+  const [pendingRefundRequests, setPendingRefundRequests] = useState<
+    RefundRequest[]
+  >([]);
+  const [refundPaymentMode, setRefundPaymentMode] =
+    useState<RefundPaymentMode>("Cash");
+  const [refundReceiptRequest, setRefundReceiptRequest] =
+    useState<RefundRequest | null>(null);
+  const [refundReceiptNumber, setRefundReceiptNumber] = useState("");
+  const [refundReceiptRefundedAt, setRefundReceiptRefundedAt] = useState("");
+  const [refundProcessingId, setRefundProcessingId] = useState<string | null>(
+    null
+  );
+  const [refundStatus, setRefundStatus] = useState("");
+
   const [supabaseQueueItems, setSupabaseQueueItems] = useState<QueueItem[]>([]);
   const [selectedSupabaseQueueItem, setSelectedSupabaseQueueItem] =
     useState<QueueItem | null>(null);
@@ -121,6 +144,8 @@ export default function ReceptionPage() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [isPrintingReceipt, setIsPrintingReceipt] = useState(false);
   const [isPrintingAdditionalReceipt, setIsPrintingAdditionalReceipt] =
+    useState(false);
+  const [isPrintingRefundReceipt, setIsPrintingRefundReceipt] =
     useState(false);
 
   const amountPayable = useMemo(() => {
@@ -148,6 +173,44 @@ export default function ReceptionPage() {
 
   const pendingAdditionalService =
     getPendingAdditionalService(activeReceptionQueueItem);
+
+  const pendingRefundForSelectedVisit =
+    pendingRefundRequests.find(
+      (request) => request.visitId === activeReceptionQueueItem?.id
+    ) || null;
+
+  const sortedReceptionQueueItems = useMemo(() => {
+    const clinicallySorted = sortQueueForRole(
+      supabaseQueueItems,
+      "reception"
+    );
+
+    const pendingRefundVisitIds = new Set(
+      pendingRefundRequests.map((request) => request.visitId)
+    );
+
+    const activeItems = clinicallySorted.filter(
+      (item) => item.status !== "Completed"
+    );
+
+    const completedWithPendingRefund = clinicallySorted.filter(
+      (item) =>
+        item.status === "Completed" &&
+        pendingRefundVisitIds.has(item.id)
+    );
+
+    const completedItems = clinicallySorted.filter(
+      (item) =>
+        item.status === "Completed" &&
+        !pendingRefundVisitIds.has(item.id)
+    );
+
+    return [
+      ...activeItems,
+      ...completedWithPendingRefund,
+      ...completedItems,
+    ];
+  }, [supabaseQueueItems, pendingRefundRequests]);
 
   const selectedPatientActiveSupabaseQueueItem =
     selectedPatient && isSupabasePatient(selectedPatient)
@@ -217,6 +280,20 @@ export default function ReceptionPage() {
     };
   }, []);
 
+  async function loadPendingRefundRequests() {
+    try {
+      const requests = await fetchPendingRefundRequestsInSupabase();
+      setPendingRefundRequests(requests);
+      setRefundStatus("");
+    } catch (error) {
+      setRefundStatus(
+        error instanceof Error
+          ? `Could not load pending refunds: ${error.message}`
+          : "Could not load pending refunds."
+      );
+    }
+  }
+
   useEffect(() => {
     let isMounted = true;
 
@@ -252,6 +329,7 @@ export default function ReceptionPage() {
     }
 
     loadInitialSupabaseQueue();
+    void loadPendingRefundRequests();
 
     return () => {
       isMounted = false;
@@ -495,13 +573,28 @@ export default function ReceptionPage() {
   }
 
   function handleOpenRegistration() {
+    const trimmedSearchTerm = searchTerm.trim();
+    const isPreviousSelectedPatientMobile =
+      Boolean(selectedPatient?.mobile) &&
+      trimmedSearchTerm === selectedPatient?.mobile;
+
+    const shouldPrefillMobile =
+      /^\d+$/.test(trimmedSearchTerm) &&
+      !isPreviousSelectedPatientMobile;
+
+    resetNewPatientForm();
+
+    if (isPreviousSelectedPatientMobile) {
+      setSearchTerm("");
+    }
+
     setShowRegistrationForm(true);
     setSelectedPatient(null);
     resetPaymentState();
     resetQueueEditState();
 
-    if (/^\d+$/.test(searchTerm.trim())) {
-      setNewPatientMobile(searchTerm.trim());
+    if (shouldPrefillMobile) {
+      setNewPatientMobile(trimmedSearchTerm);
     }
   }
 
@@ -998,6 +1091,97 @@ export default function ReceptionPage() {
     }, 150);
   }
 
+  async function handleProcessRefundAndPrint(
+    refundRequest: RefundRequest
+  ) {
+    const activeItem = selectedSupabaseQueueItem;
+
+    if (!activeItem || activeItem.id !== refundRequest.visitId) {
+      alert("Please select the patient with this pending refund first.");
+      return;
+    }
+
+    const shouldProcess = window.confirm(
+      `Process refund of ₹${refundRequest.refundAmount} against receipt ${refundRequest.originalReceiptNumber}?`
+    );
+
+    if (!shouldProcess) {
+      return;
+    }
+
+    setRefundProcessingId(refundRequest.id);
+    setRefundStatus("Processing refund...");
+
+    try {
+      const processedRefund = await processRefundRequestInSupabase({
+        requestId: refundRequest.id,
+        paymentMode: refundPaymentMode,
+      });
+
+      const processedRequest: RefundRequest = {
+        ...refundRequest,
+        status: "Refunded",
+        linkedRefundPaymentId: processedRefund.refundPaymentId,
+        refundedAt: processedRefund.refundedAt,
+      };
+
+      let refundReceiptPdfWarning = "";
+
+      try {
+        const refundReceiptPdfBlob = await pdf(
+          <RefundReceiptPdfDocument
+            patient={activeItem}
+            refundRequest={processedRequest}
+            paymentMode={processedRefund.paymentMode}
+            receiptNumber={processedRefund.refundReceiptNumber}
+            refundedAt={processedRefund.refundedAt}
+            clinicSettings={activeClinicSettings}
+          />
+        ).toBlob();
+
+        await upsertGeneratedDocumentToSupabase({
+          patientId: refundRequest.patientId,
+          visitId: refundRequest.visitId,
+          paymentId: processedRefund.refundPaymentId,
+          documentType: "Refund Receipt",
+          fileName: `Refund-Receipt-${activeItem.uhid}-${processedRefund.refundReceiptNumber}.pdf`,
+          storagePath: `${refundRequest.patientId}/${refundRequest.visitId}/receipts/${processedRefund.refundPaymentId}.pdf`,
+          pdfBlob: refundReceiptPdfBlob,
+        });
+      } catch (pdfError) {
+        refundReceiptPdfWarning =
+          pdfError instanceof Error
+            ? ` Refund receipt PDF warning: ${pdfError.message}`
+            : " Refund receipt PDF could not be stored.";
+      }
+
+      setRefundReceiptRequest(processedRequest);
+      setRefundReceiptNumber(processedRefund.refundReceiptNumber);
+      setRefundReceiptRefundedAt(processedRefund.refundedAt);
+
+      await loadPendingRefundRequests();
+
+      setRefundStatus(
+        `Refund ${processedRefund.refundReceiptNumber} processed for ₹${processedRefund.refundAmount}. Final refund receipt PDF stored.${refundReceiptPdfWarning}`
+      );
+
+      setIsPrintingRefundReceipt(true);
+
+      setTimeout(() => {
+        window.print();
+        setIsPrintingRefundReceipt(false);
+      }, 150);
+    } catch (error) {
+      setRefundStatus(
+        error instanceof Error
+          ? `Refund error: ${error.message}`
+          : "Refund processing error."
+      );
+    } finally {
+      setRefundProcessingId(null);
+    }
+  }
+
   async function handleCollectAdditionalPaymentAndPrint(
     serviceRequestId: string
   ) {
@@ -1118,6 +1302,7 @@ export default function ReceptionPage() {
 
   async function handleLoadSupabaseQueue() {
     setSupabaseQueueStatus("Loading today's queue...");
+    void loadPendingRefundRequests();
 
     try {
       const queue = await fetchTodayQueueFromSupabase();
@@ -1199,6 +1384,21 @@ export default function ReceptionPage() {
     );
   }
 
+  if (isPrintingRefundReceipt) {
+    return (
+      <div className="bg-white p-4">
+        <RefundReceiptPreview
+          patient={activeReceptionQueueItem}
+          refundRequest={refundReceiptRequest}
+          paymentMode={refundPaymentMode}
+          receiptNumber={refundReceiptNumber}
+          refundedAt={refundReceiptRefundedAt}
+          clinicSettingsOverride={activeClinicSettings}
+        />
+      </div>
+    );
+  }
+
   return (
     <AppShell
       title="Reception Workspace"
@@ -1240,7 +1440,7 @@ export default function ReceptionPage() {
 
               {supabaseQueueItems.length > 0 && (
                 <div className="mt-4 grid gap-3">
-                  {supabaseQueueItems.map((item) => {
+                  {sortedReceptionQueueItems.map((item) => {
                     const isSelected =
                       selectedSupabaseQueueItem?.id === item.id;
                     const itemPendingAdditionalService =
@@ -1249,6 +1449,10 @@ export default function ReceptionPage() {
                       item.additionalServices?.filter(
                         (service) => service.status === "Paid"
                       ) || [];
+                    const itemPendingRefund =
+                      pendingRefundRequests.find(
+                        (request) => request.visitId === item.id
+                      ) || null;
 
                     return (
                       <button
@@ -1273,6 +1477,20 @@ export default function ReceptionPage() {
                         <p className="mt-1 text-xs text-slate-600">
                           Consultation paid ₹{item.amountPaid} · {item.paymentMode}
                         </p>
+
+                        {itemPendingRefund && (
+                          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                            <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
+                              Refund Pending
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-amber-950">
+                              Return ₹{itemPendingRefund.refundAmount}
+                            </p>
+                            <p className="mt-1 text-xs text-amber-800">
+                              Against {itemPendingRefund.originalReceiptNumber}
+                            </p>
+                          </div>
+                        )}
 
                         {itemPendingAdditionalService && (
                           <div className="mt-3 rounded-xl bg-red-600 p-3 text-white">
@@ -1437,6 +1655,99 @@ export default function ReceptionPage() {
             subtitle="Find existing patient, register, or correct selected queue patient"
           >
             <div className="grid gap-4">
+              {activeReceptionQueueItem && pendingRefundForSelectedVisit && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                  <p className="text-sm font-bold uppercase tracking-wide text-amber-800">
+                    Refund Advice Pending
+                  </p>
+
+                  <p className="mt-2 font-semibold text-slate-900">
+                    {activeReceptionQueueItem.patientName} ·{" "}
+                    {activeReceptionQueueItem.uhid}
+                  </p>
+
+                  <div className="mt-3 grid gap-2 text-sm text-slate-700">
+                    <p>
+                      Original receipt:{" "}
+                      <span className="font-semibold">
+                        {pendingRefundForSelectedVisit.originalReceiptNumber}
+                      </span>
+                    </p>
+
+                    <p>
+                      Original amount paid:{" "}
+                      <span className="font-semibold">
+                        ₹{pendingRefundForSelectedVisit.originalPaidAmount}
+                      </span>
+                    </p>
+
+                    <p>
+                      Amount to refund:{" "}
+                      <span className="font-bold text-red-700">
+                        ₹{pendingRefundForSelectedVisit.refundAmount}
+                      </span>
+                    </p>
+
+                    <p>
+                      Reason:{" "}
+                      <span className="font-semibold">
+                        {pendingRefundForSelectedVisit.reason}
+                      </span>
+                    </p>
+
+                    {pendingRefundForSelectedVisit.notes && (
+                      <p>
+                        Doctor note:{" "}
+                        <span className="font-semibold">
+                          {pendingRefundForSelectedVisit.notes}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+
+                  <label className="mt-4 grid gap-2 text-sm font-medium text-slate-700">
+                    Refund Mode
+                    <select
+                      value={refundPaymentMode}
+                      onChange={(event) =>
+                        setRefundPaymentMode(
+                          event.target.value as RefundPaymentMode
+                        )
+                      }
+                      className="rounded-xl border border-amber-300 bg-white px-4 py-3 outline-none focus:border-amber-500"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Card">Card</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleProcessRefundAndPrint(
+                        pendingRefundForSelectedVisit
+                      )
+                    }
+                    disabled={
+                      refundProcessingId === pendingRefundForSelectedVisit.id
+                    }
+                    className="mt-4 rounded-xl bg-amber-700 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {refundProcessingId === pendingRefundForSelectedVisit.id
+                      ? "Processing Refund..."
+                      : "Process Refund & Print"}
+                  </button>
+                </div>
+              )}
+
+              {refundStatus && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+                  {refundStatus}
+                </div>
+              )}
+
               {activeReceptionQueueItem && pendingAdditionalService && (
                 <AdditionalPaymentPendingCard
                   patient={activeReceptionQueueItem}

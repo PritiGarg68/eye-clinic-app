@@ -597,7 +597,7 @@ export default function DoctorPage() {
         const refreshedItem = doctorQueue.find((item) => item.id === current.id);
 
         if (!refreshedItem) {
-          return current;
+          return null;
         }
 
         return {

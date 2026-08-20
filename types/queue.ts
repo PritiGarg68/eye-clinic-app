@@ -101,6 +101,7 @@ export type DoctorConsultation = {
   notes: string;
   finalSpectacleAdvice: SpectacleAdvice;
   optometristSpectacleBaseline?: SpectacleAdvice;
+  doctorSpectacleReviewed?: boolean;
   updatedAt?: string;
 };
 

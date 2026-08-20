@@ -130,6 +130,7 @@ const emptyConsultation: DoctorConsultation = {
   freeFollowUpValidUntil: "",
   notes: "",
   finalSpectacleAdvice: emptySpectacleAdvice,
+  doctorSpectacleReviewed: false,
 };
 
 const emptyOptometristWorkup: OptometristWorkup = {
@@ -297,6 +298,7 @@ function mergeReturnedOptometristSpectacleDraft(input: {
   baseline?: SpectacleAdvice;
   doctorAdvice: SpectacleAdvice;
   latestOptometristDraft: SpectacleAdvice;
+  doctorReviewed?: boolean;
 }): SpectacleMergeResult {
   const doctorAdvice = normalizeSpectacleAdvice(input.doctorAdvice);
   const latestOptometristDraft = normalizeSpectacleAdvice(
@@ -350,6 +352,15 @@ function mergeReturnedOptometristSpectacleDraft(input: {
 
       if (optometristChangedField) {
         optometristChanged = true;
+
+        if (input.doctorReviewed) {
+          conflicts.push({
+            fieldLabel: `${rowLabels[rowKey]} ${fieldLabels[fieldKey]}`,
+            doctorValue: String(doctorValue || ""),
+            optometristValue: String(latestOptometristValue || ""),
+          });
+          continue;
+        }
       }
 
       if (optometristChangedField && !doctorChanged) {
@@ -386,9 +397,20 @@ function mergeReturnedOptometristSpectacleDraft(input: {
 
   if (optometristChangedRemarks) {
     optometristChanged = true;
+
+    if (input.doctorReviewed) {
+      conflicts.push({
+        fieldLabel: "Remarks",
+        doctorValue: String(doctorRemarks || ""),
+        optometristValue: String(latestOptometristRemarks || ""),
+      });
+    }
   }
 
-  if (optometristChangedRemarks && !doctorChangedRemarks) {
+  if (optometristChangedRemarks && input.doctorReviewed) {
+    // Doctor owns the entire reviewed spectacle prescription.
+    // Preserve Doctor remarks until explicitly changed by Doctor.
+  } else if (optometristChangedRemarks && !doctorChangedRemarks) {
     mergedAdvice.remarks = latestOptometristRemarks;
   } else if (
     optometristChangedRemarks &&
@@ -802,6 +824,9 @@ export default function DoctorPage() {
           baseline: savedConsultation.optometristSpectacleBaseline,
           doctorAdvice: loadedConsultation.finalSpectacleAdvice,
           latestOptometristDraft: normalizedWorkup.spectacleDraft,
+          doctorReviewed: Boolean(
+            savedConsultation.doctorSpectacleReviewed
+          ),
         });
 
         setConsultation({
@@ -814,8 +839,8 @@ export default function DoctorPage() {
             .map((conflict) => conflict.fieldLabel)
             .join(", ");
           const conflictMessage =
-            `Optometrist updated the spectacle draft after your edits. ` +
-            `Your values have been preserved for: ${conflictFields}. ` +
+            `Optometrist updated the spectacle draft after Doctor review. ` +
+            `Doctor values have been preserved for: ${conflictFields}. ` +
             `Please review before completing.`;
 
           setSpectacleReviewNotice({
@@ -884,6 +909,7 @@ export default function DoctorPage() {
             [field]: value,
           },
         },
+        doctorSpectacleReviewed: true,
       };
     });
 
@@ -902,6 +928,7 @@ export default function DoctorPage() {
           ...currentAdvice,
           remarks: value,
         },
+        doctorSpectacleReviewed: true,
       };
     });
 
@@ -1305,11 +1332,17 @@ export default function DoctorPage() {
       }
 
       try {
+        const consultationToSave: DoctorConsultation = {
+          ...consultation,
+          optometristSpectacleBaseline:
+            selectedSupabaseQueueItem.optometristWorkup?.spectacleDraft,
+        };
+
         const savedConsultation =
           await saveDoctorConsultationDraftToSupabase({
             visitId: selectedSupabaseQueueItem.id,
             patientId: selectedSupabaseQueueItem.patientId,
-            consultation,
+            consultation: consultationToSave,
           });
 
         const existingWorkup =

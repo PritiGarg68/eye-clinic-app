@@ -131,6 +131,8 @@ export type UpdatePatientInput = {
   fullName: string;
   ageYears: number;
   gender: "Male" | "Female" | "Other";
+  mobile?: string;
+  address?: string | null;
   patientSourceId?: string | null;
   referralNotes?: string | null;
 };
@@ -144,6 +146,12 @@ export async function updatePatientInSupabase(
       full_name: input.fullName.trim(),
       age_years: input.ageYears,
       gender: input.gender,
+      ...(input.mobile !== undefined
+        ? { mobile: input.mobile.trim() }
+        : {}),
+      ...(input.address !== undefined
+        ? { address: input.address?.trim() || null }
+        : {}),
       ...(input.patientSourceId !== undefined
         ? { patient_source_id: input.patientSourceId || null }
         : {}),
@@ -163,4 +171,20 @@ export async function updatePatientInSupabase(
   }
 
   return mapPatientRow(data as PatientRow);
+}
+
+export async function deactivatePatientInSupabase(
+  patientId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from("patients")
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", patientId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }

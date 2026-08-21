@@ -8,7 +8,9 @@ import SpectacleAdvicePrint from "../components/SpectacleAdvicePrint";
 import { clinicSettings, fetchClinicSettings } from "../../lib/clinicSettings";
 import {
   SupabasePatient,
+  deactivatePatientInSupabase,
   searchPatientsFromSupabase,
+  updatePatientInSupabase,
 } from "../../lib/patientsDb";
 import {
   PatientRecordPayment,
@@ -338,6 +340,14 @@ export default function PatientRecordsPage() {
   const [patients, setPatients] = useState<SupabasePatient[]>([]);
   const [selectedPatient, setSelectedPatient] =
     useState<SupabasePatient | null>(null);
+  const [isEditingPatientDetails, setIsEditingPatientDetails] = useState(false);
+  const [editablePatientName, setEditablePatientName] = useState("");
+  const [editablePatientMobile, setEditablePatientMobile] = useState("");
+  const [editablePatientAge, setEditablePatientAge] = useState("");
+  const [editablePatientGender, setEditablePatientGender] =
+    useState<SupabasePatient["gender"]>("Male");
+  const [editablePatientAddress, setEditablePatientAddress] = useState("");
+  const [patientDetailsStatus, setPatientDetailsStatus] = useState("");
   const [visits, setVisits] = useState<PatientRecordVisit[]>([]);
   const [attachments, setAttachments] = useState<PatientAttachment[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
@@ -367,6 +377,8 @@ export default function PatientRecordsPage() {
 
     setStatusMessage("Searching patients...");
     setSelectedPatient(null);
+    setIsEditingPatientDetails(false);
+    setPatientDetailsStatus("");
     setVisits([]);
     setAttachments([]);
     setShowAddReport(false);
@@ -389,6 +401,13 @@ export default function PatientRecordsPage() {
 
   async function handleSelectPatient(patient: SupabasePatient) {
     setSelectedPatient(patient);
+    setIsEditingPatientDetails(false);
+    setEditablePatientName(patient.fullName);
+    setEditablePatientMobile(patient.mobile);
+    setEditablePatientAge(String(patient.ageYears));
+    setEditablePatientGender(patient.gender);
+    setEditablePatientAddress(patient.address || "");
+    setPatientDetailsStatus("");
     setStatusMessage("Loading patient records...");
     setShowAddReport(false);
     setReportCategory("External Report");
@@ -413,6 +432,126 @@ export default function PatientRecordsPage() {
         error instanceof Error
           ? error.message
           : "Could not load patient records."
+      );
+    }
+  }
+
+  function handleStartEditPatientDetails() {
+    if (!selectedPatient) {
+      return;
+    }
+
+    setEditablePatientName(selectedPatient.fullName);
+    setEditablePatientMobile(selectedPatient.mobile);
+    setEditablePatientAge(String(selectedPatient.ageYears));
+    setEditablePatientGender(selectedPatient.gender);
+    setEditablePatientAddress(selectedPatient.address || "");
+    setPatientDetailsStatus("");
+    setIsEditingPatientDetails(true);
+  }
+
+  function handleCancelEditPatientDetails() {
+    setIsEditingPatientDetails(false);
+    setPatientDetailsStatus("");
+  }
+
+  async function handleSavePatientDetails() {
+    if (!selectedPatient) {
+      return;
+    }
+
+    const trimmedName = editablePatientName.trim();
+    const trimmedMobile = editablePatientMobile.trim();
+    const ageYears = Number(editablePatientAge);
+
+    if (!trimmedName || !trimmedMobile || editablePatientAge.trim() === "") {
+      setPatientDetailsStatus("Name, mobile number, and age are required.");
+      return;
+    }
+
+    if (!Number.isInteger(ageYears) || ageYears < 0 || ageYears > 130) {
+      setPatientDetailsStatus("Please enter a valid age between 0 and 130.");
+      return;
+    }
+
+    setPatientDetailsStatus("Saving patient details...");
+
+    try {
+      const updatedPatient = await updatePatientInSupabase({
+        patientId: selectedPatient.id,
+        fullName: trimmedName,
+        mobile: trimmedMobile,
+        ageYears,
+        gender: editablePatientGender,
+        address: editablePatientAddress,
+      });
+
+      setSelectedPatient(updatedPatient);
+      setPatients((current) =>
+        current.map((patient) =>
+          patient.id === updatedPatient.id ? updatedPatient : patient
+        )
+      );
+      setEditablePatientName(updatedPatient.fullName);
+      setEditablePatientMobile(updatedPatient.mobile);
+      setEditablePatientAge(String(updatedPatient.ageYears));
+      setEditablePatientGender(updatedPatient.gender);
+      setEditablePatientAddress(updatedPatient.address || "");
+      setIsEditingPatientDetails(false);
+      setPatientDetailsStatus("Patient details updated successfully.");
+    } catch (error) {
+      setPatientDetailsStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not update patient details."
+      );
+    }
+  }
+
+  async function handleDeactivatePatient() {
+    if (!selectedPatient) {
+      return;
+    }
+
+    const firstConfirmation = window.confirm(
+      `Deactivate ${selectedPatient.fullName} (${selectedPatient.uhid})?\n\nThe patient will disappear from normal active-patient search and cannot be checked in, but all existing visits, receipts, prescriptions, and attachments will remain stored.`
+    );
+
+    if (!firstConfirmation) {
+      return;
+    }
+
+    const secondConfirmation = window.confirm(
+      `Please confirm again: deactivate ${selectedPatient.fullName}?`
+    );
+
+    if (!secondConfirmation) {
+      return;
+    }
+
+    setPatientDetailsStatus("Deactivating patient...");
+
+    try {
+      await deactivatePatientInSupabase(selectedPatient.id);
+
+      const deactivatedPatientId = selectedPatient.id;
+
+      setPatients((current) =>
+        current.filter((patient) => patient.id !== deactivatedPatientId)
+      );
+      setSelectedPatient(null);
+      setVisits([]);
+      setAttachments([]);
+      setIsEditingPatientDetails(false);
+      setPatientDetailsStatus("");
+      setStatusMessage(
+        "Patient deactivated. Historical records remain stored and unchanged."
+      );
+    } catch (error) {
+      setPatientDetailsStatus(
+        error instanceof Error
+          ? error.message
+          : "Could not deactivate patient."
       );
     }
   }
@@ -688,18 +827,157 @@ export default function PatientRecordsPage() {
           {selectedPatient && (
             <div className="grid gap-4">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-medium text-emerald-800">
-                  Selected Patient
-                </p>
-                <p className="mt-2 text-lg font-semibold text-slate-900">
-                  {selectedPatient.fullName}
-                </p>
-                <p className="text-sm text-slate-600">
-                  {selectedPatient.ageYears} yrs / {selectedPatient.gender}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {selectedPatient.uhid} · {selectedPatient.mobile}
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-800">
+                      Selected Patient
+                    </p>
+
+                    {!isEditingPatientDetails && (
+                      <>
+                        <p className="mt-2 text-lg font-semibold text-slate-900">
+                          {selectedPatient.fullName}
+                        </p>
+                        <p className="text-sm text-slate-600">
+                          {selectedPatient.ageYears} yrs / {selectedPatient.gender}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          {selectedPatient.uhid} · {selectedPatient.mobile}
+                        </p>
+                        {selectedPatient.address && (
+                          <p className="mt-1 text-sm text-slate-600">
+                            {selectedPatient.address}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {!isEditingPatientDetails && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleStartEditPatientDetails}
+                        className="rounded-xl border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+                      >
+                        Edit Patient Details
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleDeactivatePatient()}
+                        className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+                      >
+                        Deactivate Patient
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {isEditingPatientDetails && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Edit Patient Details
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      UHID {selectedPatient.uhid} will remain unchanged. Historical documents will not be modified.
+                    </p>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        Patient Name
+                        <input
+                          type="text"
+                          value={editablePatientName}
+                          onChange={(event) =>
+                            setEditablePatientName(event.target.value)
+                          }
+                          className="rounded-xl border border-slate-300 px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        Mobile Number
+                        <input
+                          type="text"
+                          value={editablePatientMobile}
+                          onChange={(event) =>
+                            setEditablePatientMobile(event.target.value)
+                          }
+                          className="rounded-xl border border-slate-300 px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        Age
+                        <input
+                          type="number"
+                          min="0"
+                          max="130"
+                          value={editablePatientAge}
+                          onChange={(event) =>
+                            setEditablePatientAge(event.target.value)
+                          }
+                          className="rounded-xl border border-slate-300 px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        />
+                      </label>
+
+                      <label className="grid gap-1 text-sm font-medium text-slate-700">
+                        Gender
+                        <select
+                          value={editablePatientGender}
+                          onChange={(event) =>
+                            setEditablePatientGender(
+                              event.target.value as SupabasePatient["gender"]
+                            )
+                          }
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        >
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </label>
+
+                      <label className="grid gap-1 text-sm font-medium text-slate-700 md:col-span-2">
+                        Address
+                        <textarea
+                          value={editablePatientAddress}
+                          onChange={(event) =>
+                            setEditablePatientAddress(event.target.value)
+                          }
+                          rows={2}
+                          placeholder="Optional"
+                          className="rounded-xl border border-slate-300 px-3 py-2 font-normal outline-none focus:border-slate-500"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSavePatientDetails()}
+                        className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+                      >
+                        Save Patient Details
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCancelEditPatientDetails}
+                        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {patientDetailsStatus && (
+                  <p className="mt-3 rounded-xl bg-white p-3 text-sm text-slate-700">
+                    {patientDetailsStatus}
+                  </p>
+                )}
               </div>
 
               <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">

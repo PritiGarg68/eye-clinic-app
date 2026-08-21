@@ -149,6 +149,46 @@ export async function createOrUpdatePendingAdditionalServiceRequestInSupabase(in
   return fetchAdditionalServiceRequestFromSupabase(requestId);
 }
 
+export async function cancelPendingAdditionalServiceRequestInSupabase(input: {
+  requestId: string;
+  visitId: string;
+}): Promise<void> {
+  const { data: cancelledRequest, error: requestError } = await supabase
+    .from("additional_service_requests")
+    .update({
+      status: "Cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.requestId)
+    .eq("visit_id", input.visitId)
+    .eq("status", "Payment Pending")
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (requestError) {
+    throw new Error(requestError.message);
+  }
+
+  if (!cancelledRequest) {
+    throw new Error(
+      "This additional service request is no longer pending and cannot be cancelled."
+    );
+  }
+
+  const { error: visitError } = await supabase
+    .from("visits")
+    .update({
+      status: "Under Consultation",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.visitId)
+    .eq("status", "Additional Payment Pending");
+
+  if (visitError) {
+    throw new Error(visitError.message);
+  }
+}
+
 export async function fetchAdditionalServiceRequestFromSupabase(
   requestId: string
 ): Promise<AdditionalServiceRequest> {

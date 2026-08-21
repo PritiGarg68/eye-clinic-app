@@ -14,12 +14,14 @@ import {
 type AdditionalServiceRequestPanelProps = {
   pendingRequest?: AdditionalServiceRequest | null;
   onCreateRequest: (serviceRequest: AdditionalServiceRequest) => void;
+  onCancelRequest?: (requestId: string) => void;
   onCancel?: () => void;
 };
 
 export default function AdditionalServiceRequestPanel({
   pendingRequest,
   onCreateRequest,
+  onCancelRequest,
   onCancel,
 }: AdditionalServiceRequestPanelProps) {
   const [availableServices, setAvailableServices] = useState<
@@ -236,14 +238,26 @@ export default function AdditionalServiceRequestPanel({
         </div>
       </div>
 
-      <button
-        onClick={handleCreateRequest}
-        className="mt-4 w-full rounded-xl bg-orange-700 px-4 py-3 font-medium text-white hover:bg-orange-800"
-      >
-        {pendingRequest
-          ? "Update Pending Request for Reception"
-          : "Send Selected Tests to Reception"}
-      </button>
+      <div className="mt-4 grid gap-2">
+        <button
+          onClick={handleCreateRequest}
+          className="w-full rounded-xl bg-orange-700 px-4 py-3 font-medium text-white hover:bg-orange-800"
+        >
+          {pendingRequest
+            ? "Update Pending Request for Reception"
+            : "Send Selected Tests to Reception"}
+        </button>
+
+        {pendingRequest && onCancelRequest && (
+          <button
+            type="button"
+            onClick={() => onCancelRequest(pendingRequest.id)}
+            className="w-full rounded-xl border border-red-300 bg-white px-4 py-3 font-medium text-red-700 hover:bg-red-50"
+          >
+            Cancel Pending Request
+          </button>
+        )}
+      </div>
     </div>
   );
 }

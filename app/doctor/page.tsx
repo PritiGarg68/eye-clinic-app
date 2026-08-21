@@ -30,7 +30,10 @@ import {
   saveOptometristWorkupToSupabase,
 } from "../../lib/optometristWorkupDb";
 import { getPendingAdditionalService } from "../../lib/additionalServiceUtils";
-import { createOrUpdatePendingAdditionalServiceRequestInSupabase } from "../../lib/additionalServiceRequestDb";
+import {
+  cancelPendingAdditionalServiceRequestInSupabase,
+  createOrUpdatePendingAdditionalServiceRequestInSupabase,
+} from "../../lib/additionalServiceRequestDb";
 import {
   cancelRefundRequestInSupabase,
   createRefundRequestInSupabase,
@@ -2101,6 +2104,44 @@ export default function DoctorPage() {
 
   }
 
+  async function handleCancelAdditionalServiceRequest(requestId: string) {
+    if (!selectedSupabaseQueueItem) {
+      alert("Please select a patient from the queue first.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Cancel this unpaid additional test / procedure request? Reception will no longer collect payment for it."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await cancelPendingAdditionalServiceRequestInSupabase({
+        requestId,
+        visitId: selectedSupabaseQueueItem.id,
+      });
+
+      setShowAdditionalServicePanel(false);
+      setAdditionalServiceMessage("");
+      setStatusMessage(
+        "Additional test / procedure request cancelled. Consultation can continue."
+      );
+
+      await loadSupabaseDoctorQueue();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not cancel additional service request.";
+
+      setAdditionalServiceMessage(message);
+      setStatusMessage(message);
+    }
+  }
+
   async function handlePrintSpectacleAdvice() {
     if (!activeQueueItem) {
       alert("Please select a patient from the queue first.");
@@ -2634,6 +2675,7 @@ export default function DoctorPage() {
     <AdditionalServiceRequestPanel
       pendingRequest={pendingAdditionalService}
       onCreateRequest={handleCreateAdditionalServiceRequest}
+      onCancelRequest={handleCancelAdditionalServiceRequest}
       onCancel={() => setShowAdditionalServicePanel(false)}
     />
                 {additionalServiceMessage && (

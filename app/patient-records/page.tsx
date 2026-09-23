@@ -20,6 +20,7 @@ import {
 import {
   AttachmentCategory,
   PatientAttachment,
+  createPatientAttachmentSignedUrl,
   fetchPatientAttachmentsFromSupabase,
   uploadPatientAttachmentToSupabase,
 } from "../../lib/patientAttachmentsDb";
@@ -76,11 +77,42 @@ function getAttachmentDisplayName(attachment: PatientAttachment) {
   return attachment.attachmentCategory;
 }
 
-function printAttachment(attachment: PatientAttachment) {
+async function viewAttachment(attachment: PatientAttachment) {
+  const viewWindow = window.open("", "_blank");
+
+  if (!viewWindow) {
+    alert("Could not open attachment.");
+    return;
+  }
+
+  try {
+    const signedUrl = await createPatientAttachmentSignedUrl(attachment);
+    viewWindow.location.href = signedUrl;
+  } catch (error) {
+    viewWindow.close();
+    alert(error instanceof Error ? error.message : "Could not open attachment.");
+  }
+}
+
+async function printAttachment(attachment: PatientAttachment) {
   const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
     alert("Could not open attachment for printing.");
+    return;
+  }
+
+  let signedUrl = "";
+
+  try {
+    signedUrl = await createPatientAttachmentSignedUrl(attachment);
+  } catch (error) {
+    printWindow.close();
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Could not open attachment for printing."
+    );
     return;
   }
 
@@ -90,10 +122,10 @@ function printAttachment(attachment: PatientAttachment) {
   const isPdf = attachment.fileType === "application/pdf";
 
   const fileDisplay = isImage
-    ? `<img src="${attachment.publicUrl}" onload="window.focus(); window.print();" />`
+    ? `<img src="${signedUrl}" onload="window.focus(); window.print();" />`
     : isPdf
-      ? `<iframe src="${attachment.publicUrl}" title="${attachment.fileName}"></iframe>`
-      : `<p>This file type can be viewed here: <a href="${attachment.publicUrl}" target="_blank" rel="noopener noreferrer">${attachment.fileName}</a></p>`;
+      ? `<iframe src="${signedUrl}" title="${attachment.fileName}"></iframe>`
+      : `<p>This file type can be viewed here: <a href="${signedUrl}" target="_blank" rel="noopener noreferrer">${attachment.fileName}</a></p>`;
 
   const helperText = isPdf
     ? "Click Print below if the print dialog does not open automatically."
@@ -1127,11 +1159,7 @@ export default function PatientRecordsPage() {
                             <button
                               type="button"
                               onClick={() =>
-                                window.open(
-                                  attachment.publicUrl,
-                                  "_blank",
-                                  "noopener,noreferrer"
-                                )
+                                void viewAttachment(attachment)
                               }
                               className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                             >

@@ -21,7 +21,6 @@ export type PatientAttachment = {
   attachmentCategory: AttachmentCategory;
   notes: string;
   createdAt: string;
-  publicUrl: string;
 };
 
 type AttachmentRow = {
@@ -50,10 +49,6 @@ function sanitizeFileName(fileName: string) {
 }
 
 function mapAttachment(row: AttachmentRow): PatientAttachment {
-  const { data } = supabase.storage
-    .from(row.storage_bucket)
-    .getPublicUrl(row.storage_path);
-
   return {
     id: row.id,
     patientId: row.patient_id,
@@ -65,8 +60,22 @@ function mapAttachment(row: AttachmentRow): PatientAttachment {
     attachmentCategory: row.attachment_category,
     notes: row.notes || "",
     createdAt: row.created_at,
-    publicUrl: data.publicUrl,
   };
+}
+
+export async function createPatientAttachmentSignedUrl(
+  attachment: PatientAttachment,
+  expiresInSeconds = 300
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(attachment.storageBucket)
+    .createSignedUrl(attachment.storagePath, expiresInSeconds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data.signedUrl;
 }
 
 export async function fetchPatientAttachmentsFromSupabase(

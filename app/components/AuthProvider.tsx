@@ -115,10 +115,10 @@ export default function AuthProvider({
       }
 
       setUser(nextUser);
-      setProfile(null);
       setAccessError(null);
 
       if (!nextUser) {
+        setProfile(null);
         setLoading(false);
         return;
       }
@@ -131,6 +131,7 @@ export default function AuthProvider({
         }
 
         if (!nextProfile) {
+          setProfile(null);
           setAccessError(
             "This login does not have a clinic user profile."
           );
@@ -139,6 +140,7 @@ export default function AuthProvider({
         }
 
         if (!nextProfile.isActive) {
+          setProfile(null);
           setAccessError("This clinic user account is inactive.");
           setLoading(false);
           return;
@@ -176,7 +178,6 @@ export default function AuthProvider({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoading(true);
       void applySession(session?.user ?? null);
     });
 

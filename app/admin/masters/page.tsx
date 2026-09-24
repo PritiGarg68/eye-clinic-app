@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "../../components/AppShell";
 import SectionCard from "../../components/SectionCard";
+import ClinicDetailsPanel from "../../components/ClinicDetailsPanel";
 import MedicineMasterPanel from "../../components/MedicineMasterPanel";
 import ServicesMasterPanel from "../../components/ServicesMasterPanel";
 import SimpleMasterPanel from "../../components/SimpleMasterPanel";
@@ -26,6 +27,7 @@ const templateTypes: ClinicalTemplateType[] = [
 ];
 
 type AdminMasterSection =
+  | "Clinic Details"
   | "Medicines"
   | "Services"
   | "Frequencies"
@@ -342,6 +344,12 @@ export default function AdminMastersPage() {
             {(
               [
                 {
+                  section: "Clinic Details",
+                  label: "Clinic Details",
+                  description:
+                    "Clinic name, doctor details, phone, email, and address.",
+                },
+                {
                   section: "Medicines",
                   label: "Medicines",
                   description:
@@ -419,6 +427,7 @@ export default function AdminMastersPage() {
                     setSelectedSection(item.section);
 
                     if (
+                      item.section !== "Clinic Details" &&
                       item.section !== "Medicines" &&
                       item.section !== "Services" &&
                       item.section !== "Frequencies" &&
@@ -452,6 +461,8 @@ export default function AdminMastersPage() {
         </SectionCard>
 
         <div className="min-w-0">
+          {selectedSection === "Clinic Details" && <ClinicDetailsPanel />}
+
           {selectedSection === "Medicines" && <MedicineMasterPanel />}
 
           {selectedSection === "Services" && <ServicesMasterPanel />}
@@ -468,7 +479,8 @@ export default function AdminMastersPage() {
             <SimpleMasterPanel masterType="Patient Source" />
           )}
 
-          {selectedSection !== "Medicines" &&
+          {selectedSection !== "Clinic Details" &&
+            selectedSection !== "Medicines" &&
             selectedSection !== "Services" &&
             selectedSection !== "Frequencies" &&
             selectedSection !== "Durations" &&

@@ -64,3 +64,79 @@ export async function fetchClinicSettings(): Promise<ClinicSettings> {
     defaultFollowUpFee: clinicSettings.defaultFollowUpFee,
   };
 }
+
+export type ClinicIdentityInput = {
+  clinicName: string;
+  doctorName: string;
+  doctorQualification: string;
+  medicalRegistrationNumber: string;
+  address: string;
+  phone: string;
+  email: string;
+};
+
+export async function updateClinicIdentityInSupabase(
+  input: ClinicIdentityInput
+): Promise<void> {
+  const cleanClinicName = input.clinicName.trim();
+  const cleanDoctorName = input.doctorName.trim();
+
+  if (!cleanClinicName) {
+    throw new Error("Clinic name is required.");
+  }
+
+  if (!cleanDoctorName) {
+    throw new Error("Doctor name is required.");
+  }
+
+  const { data: existingRow, error: lookupError } = await supabase
+    .from("clinic_settings")
+    .select("id")
+    .limit(1)
+    .single<{ id: string }>();
+
+  if (lookupError || !existingRow) {
+    throw new Error(lookupError?.message || "Clinic settings could not be found.");
+  }
+
+  const { error } = await supabase
+    .from("clinic_settings")
+    .update({
+      clinic_name: cleanClinicName,
+      doctor_name: cleanDoctorName,
+      qualification: input.doctorQualification.trim() || null,
+      registration_number: input.medicalRegistrationNumber.trim() || null,
+      address: input.address.trim() || null,
+      phone: input.phone.trim() || null,
+      email: input.email.trim() || null,
+    })
+    .eq("id", existingRow.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function fetchClinicIdentityForAdmin(): Promise<ClinicIdentityInput> {
+  const { data, error } = await supabase
+    .from("clinic_settings")
+    .select(
+      "clinic_name, doctor_name, qualification, registration_number, address, phone, email"
+    )
+    .limit(1)
+    .single<ClinicSettingsRow>();
+
+  if (error || !data) {
+    throw new Error(error?.message || "Clinic settings could not be loaded.");
+  }
+
+  return {
+    clinicName: data.clinic_name || "",
+    doctorName: data.doctor_name || "",
+    doctorQualification: data.qualification || "",
+    medicalRegistrationNumber: data.registration_number || "",
+    address: data.address || "",
+    phone: data.phone || "",
+    email: data.email || "",
+  };
+}
